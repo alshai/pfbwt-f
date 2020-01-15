@@ -4,7 +4,7 @@ Implementation of the Prefix-Free BWT (pfbwt) algorithm desribed in [Boucher, et
 optimized specifically for **fasta** files containing genomic data (ie., text
 contains only the characters A, C, G, and T. Some Ns are allowed).
 
-Borrows heavily from the [original implementation by Giovanni Manzini](https://gitlab.com/manzai/Big-BWT/blob/master/bigbwt)
+Borrows heavily from the [original implementation by Giovanni Manzini](https://gitlab.com/manzai/Big-BWT/)
 
 Some modifications / additions from the original code:
 
@@ -49,12 +49,12 @@ make
 NOTE: The input file should not contain the characters 0x00, 0x01, and 0x02,
 each of which are used by the internal algorithms.
 
-2) build the BWT
+2) build the BWT. Make sure the window size is the same one as used in `parse-f`.
 
 ```
 ./pfbwt-f -w <window size> <x.fa>
 ```
 
 The final BWT will be located in `x.fa.bwt`. This file will contain one extra
-character from the input (0x00) - this represents the end-of-string symbol of 
-the text. Make sure the window size is the same one as used in `parse-f`
+character from the input (0x00) - this represents the end-of-string symbol of
+the text.
