@@ -4,8 +4,7 @@
 #include <string>
 #include <getopt.h>
 #include "pfbwt-f.hpp"
-#include "VecWrapper.hpp"
-#include "MMapWrapper.hpp"
+#include "file_wrappers.hpp"
 extern "C" {
 #include "utils.h"
 }
@@ -58,7 +57,7 @@ PrefixFreeBWTArgs parse_args(int argc, char** argv) {
 }
 
 void run_pfbwt(PrefixFreeBWTArgs args) {
-    pfbwtf::PrefixFreeBWT<uint32_t, MMapSource, MMapSink> p(args.prefix, args.w); // load dict, ilist, last, etc
+    pfbwtf::PrefixFreeBWT<uint32_t, MMapFileSource, MMapFileSink> p(args.prefix, args.w); // load dict, ilist, last, etc
     FILE* bwt_fp = open_aux_file(args.prefix.data(),"bwt","wb");
     p.generate_bwt_lcp([&bwt_fp](pfbwtf::BwtT b) { fputc(b.c, bwt_fp); });
     fclose(bwt_fp);

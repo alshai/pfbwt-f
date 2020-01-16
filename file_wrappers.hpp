@@ -1,16 +1,14 @@
-#ifndef MMAPW_HPP
-#define MMAPW_HPP
+#ifndef FILEW_HPP
+#define FILEW_HPP
 
 #include <vector>
 #include <cstdio>
 #include <string>
 #include "mio.hpp"
 
-// READ-ONLY abstraction of mio::ummap_source that treats underlying file as
-// contiguous array of sizeof(T) byte words
-// TODO: add iterators, add write-support
+/* load file using mmap and treat it as an STL container (mio) */
 template<typename T, mio::access_mode AccessMode>
-class MMapWrapper {
+class MMapFile {
 
     public:
 
@@ -22,9 +20,9 @@ class MMapWrapper {
     using const_iterator = const value_type*;
 
 
-    MMapWrapper() = default;
+    MMapFile() = default;
 
-    MMapWrapper(std::string path) :
+    MMapFile(std::string path) :
         mm(path)
     {
         if (mm.size() %  sizeof(T) != 0) {
@@ -42,30 +40,28 @@ class MMapWrapper {
         return reinterpret_cast<const T*>(mm.data())[i]; 
     }
 
-    size_t size() const {
+    size_t size() const noexcept {
         return mm.size() / sizeof(T);
     }
 
     template<mio::access_mode A = AccessMode, typename = typename std::enable_if<A == mio::access_mode::write>::type>
-    T* data() { 
+    T* data() noexcept { 
         return reinterpret_cast<T*>(mm.data()); 
     }
 
-    const T* data() const { 
+    const T* data() const noexcept { 
         return reinterpret_cast<const T*>(mm.data());
     }
 
-    /* TODO: to implement, write length() function
     template<mio::access_mode A = AccessMode, typename = typename std::enable_if<A == mio::access_mode::write>::type> 
     iterator begin() noexcept { return data(); }
     const_iterator begin() const noexcept { return data(); }
     const_iterator cbegin() const noexcept { return data(); }
 
     template<mio::access_mode A = AccessMode, typename = typename std::enable_if<A == mio::access_mode::write>::type> 
-    iterator end() noexcept { return data() + length(); }
-    const_iterator end() const noexcept { return data() + length(); }
-    const_iterator cend() const noexcept { return data() + length(); }
-    */
+    iterator end() noexcept { return data() + size(); }
+    const_iterator end() const noexcept { return data() + size(); }
+    const_iterator cend() const noexcept { return data() + size(); }
 
     private:
     mio::basic_mmap<AccessMode, unsigned char> mm;
@@ -73,9 +69,32 @@ class MMapWrapper {
 };
 
 template<typename T>
-using MMapSource = MMapWrapper<T, mio::access_mode::read>;
+using MMapFileSource = MMapFile<T, mio::access_mode::read>;
 
 template<typename T>
-using MMapSink = MMapWrapper<T, mio::access_mode::write>;
+using MMapFileSink = MMapFile<T, mio::access_mode::write>;
+
+/* load a file into std::vector using default allocation behaviour (probably malloc) */
+template<typename T>
+class VecFile : public std::vector<T> {
+
+    public:
+
+    VecFile() {}
+
+    VecFile(std::string path) {
+        FILE* fp = fopen(path.data(), "rb");
+        fseek(fp, 0, SEEK_END);
+        size_t size = ftell(fp);
+        size_t nelems = size / sizeof(T);
+        rewind(fp);
+        this->resize(nelems);
+        if (fread(&(*this)[0], sizeof(T), this->size(), fp) != nelems) {
+            exit(1);
+        }
+        fclose(fp);
+    }
+
+};
 
 #endif
