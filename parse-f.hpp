@@ -94,7 +94,8 @@ struct Parser {
 
     // assigns lexicographic rankings to items in dictionary
     // and creates occ array
-    void update_dict(const char* fname = NULL) {
+    template<typename DictFn>
+    void update_dict(DictFn dict_fn) {
         std::vector<const char*> dict_phrases;
         dict_phrases.reserve(freqs.size());
         for (auto it = freqs.begin(); it != freqs.end(); ++it) {
@@ -102,12 +103,6 @@ struct Parser {
         }
         std::sort(dict_phrases.begin(), dict_phrases.end(),
                 [](const char* l, const char* r) { return strcmp(l, r) <= 0; });
-        FILE* dict_fp = NULL;
-        FILE* occ_fp = NULL;
-        if (fname != NULL) {
-            dict_fp = open_aux_file(fname, EXTDICT, "wb");
-            occ_fp  = open_aux_file(fname, EXTOCC, "wb");
-        }
         occs.clear();
         occs.reserve(dict_phrases.size());
         size_t rank = 1;
@@ -116,21 +111,7 @@ struct Parser {
             auto& wf = freqs.at(x);
             wf.r = rank++;
             occs.push_back(wf.n);
-            if (fname != NULL) {
-                if (fwrite(x, 1, strlen(x), dict_fp) != strlen(x))
-                    die("Error writing to DICT file\n");
-                if (fputc(EndOfWord, dict_fp) == EOF)
-                    die("Error writing EndOfWord to DICT file");
-                if (fwrite(&wf.n, sizeof(wf.n), 1, occ_fp) != 1)
-                    die("Error writing to OCC file\n");
-            }
-        }
-        if (fname != NULL) {
-            if (fputc(EndOfDict, dict_fp) == EOF) die("Error writing EndOfDict to DICT file");
-            if (fclose(occ_fp)) die("Error closing OCC file");
-            else fprintf(stderr, "OCC written to %s.%s\n", fname, EXTOCC);
-            if (fclose(dict_fp)) die("Error closing DICT file");
-            else fprintf(stderr, "DICT written to %s.%s\n", fname, EXTDICT);
+            dict_fn(x, wf.n);
         }
     }
 
@@ -146,39 +127,7 @@ struct Parser {
             auto wf = freqs.at(std::string(phrase));
             parse_ranks.push_back(wf.r);
         }
-    }
-
-    /* dumps lexicographic ranks of phrases in the parse
-     * to fname.parse
-     */
-    void dump_parse(const char* fname) {
-        if (!parse_ranks.size()) {
-            generate_parse_ranks();
-        }
-        size_t n = parse_ranks.size();
-        FILE* parse_fp = open_aux_file(fname, EXTPARSE, "wb");
-        n = parse_ranks[n-1] ? n : n-1;
-        if (fwrite(parse_ranks.data(), sizeof(parse_ranks[0]), n, parse_fp) != n)
-            die("error writing to PARSE");
-        if (fclose(parse_fp)) die("Error closing PARSE file");
-        else fprintf(stderr, "PARSE written to %s.%s\n", fname, EXTPARSE);
-    }
-
-    void dump_last(const char* fname) {
-        FILE* last_fp = open_aux_file(fname, EXTLST, "wb");
-        if (fwrite(last.data(), sizeof(last[0]), last.size(), last_fp) != last.size())
-            die("error writing to LAST");
-        if (fclose(last_fp)) die("error closing LAST file\n");
-        else fprintf(stderr, "LAST file written to %s.%s\n", fname, EXTLST);
-    }
-
-    void dump_occs(const char* fname) {
-        fprintf(stderr, "writing occ file...\n");
-        FILE* occ_fp = open_aux_file(fname, EXTOCC, "wb");
-        if (fwrite(occs.data(), sizeof(occs[0]), occs.size(), occ_fp) != occs.size())
-            die("error writing to OCC");
-        if (fclose(occ_fp)) die("Error closing OCC file");
-        else fprintf(stderr, "OCC written to %s.%s\n", fname, EXTOCC);
+        parse_size = parse_ranks.size();
     }
 
     void clear_dict() {
@@ -226,6 +175,17 @@ struct Parser {
         return p;
     }
 
+    const std::vector<const char*>& get_parse() const {
+        return parse;
+    }
+
+    const std::vector<IntType>& get_parse_ranks() const {
+        if (!parse_ranks.size()) {
+            die("parse ranks have not been generated!");
+        }
+        return parse_ranks;
+    }
+
     // generates bwlast and ilist (and bwsai)
     template<typename OutFn>
     void bwt_of_parse(OutFn out_fn, bool get_sai=false) {
@@ -236,6 +196,7 @@ struct Parser {
 
         size_t n; // size of parse_ranks, minus the last EOS character
         // TODO: support large parse sizes 
+        if (!parse_ranks.size()) generate_parse_ranks();
         if (parse_ranks.size() > 0x7FFFFFFE) {
             fprintf(stderr, "currently no support for texts w/ > 2^31-2 phrases\n");
             exit(1);
@@ -304,7 +265,7 @@ struct Parser {
         out_fn(bwlast, ilist, bwsai);
     }
 
-
+    size_t get_parse_size() const { return parse_size; }
 
     private:
 
@@ -322,6 +283,7 @@ struct Parser {
     std::vector<char> last;
     std::vector<IntType> sai;
     size_t w, p;
+    size_t parse_size;
 };
 }; // namespace end
 

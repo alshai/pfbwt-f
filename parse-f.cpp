@@ -91,6 +91,14 @@ void vec_to_file(const std::vector<T>& vec, std::string fname) {
     }
 }
 
+template<typename T>
+void vec_to_file(const std::vector<T>& vec, size_t nelems, std::string fname) {
+    FILE* fp = fopen(fname.data(), "wb");
+    if (fwrite(vec.data(), sizeof(T), nelems, fp) != nelems ) {
+        die("could not write file");
+    }
+}
+
 int main(int argc, char** argv) {
     pfbwtf::ParseArgs args(parse_args(argc, argv));
     // build the dictionary and populate .last, .sai and .parse_old
@@ -101,15 +109,26 @@ int main(int argc, char** argv) {
         p.parse_fasta(args.in_fname.data(), args.sai);
     }
     {
-        Timer t("TASK\tsorting dict, calculating occs\t");
-        p.update_dict(args.in_fname.data());
+        Timer t("TASK\tsorting dict, calculating occs, dumping to file\t");
+        FILE* dict_fp = open_aux_file(args.in_fname.data(), EXTDICT, "wb");
+        FILE* occ_fp  = open_aux_file(args.in_fname.data(), EXTOCC, "wb");
+        p.update_dict([&](const char* phrase, uint32_t freq) {
+                if (fwrite(phrase, 1, strlen(phrase), dict_fp) != strlen(phrase))
+                die("Error writing to DICT file\n");
+                if (fputc(EndOfWord, dict_fp) == EOF)
+                die("Error writing EndOfWord to DICT file");
+                if (fwrite(&freq, sizeof(freq), 1, occ_fp) != 1)
+                die("Error writing to OCC file\n");
+                }
+        );
+        if (fputc(EndOfDict, dict_fp) == EOF) die("Error writing EndOfDict to DICT file");
+        if (fclose(dict_fp)) die("Error closing DICT file");
+        else fprintf(stderr, "DICT written to %s.%s\n", args.in_fname.data(), EXTDICT);
+        if (fclose(occ_fp)) die("Error closing OCC file");
+        else fprintf(stderr, "OCC written to %s.%s\n", args.in_fname.data(), EXTOCC);
     }
     {
-        Timer t("TASK\tRanking parse\t");
-        p.generate_parse_ranks();
-    }
-    {
-        Timer t("TASK\tbwt-ing parse and processing last-chars\t");
+        Timer t("TASK\tranking and bwt-ing parse and processing last-chars\t");
         p.bwt_of_parse(
                 [&](std::vector<char> bwlast, std::vector<uint32_t> ilist, std::vector<uint32_t> bwsai) {
                     vec_to_file<char>(bwlast, args.in_fname + "." + EXTBWLST);
@@ -120,7 +139,8 @@ int main(int argc, char** argv) {
     }
     {
         Timer t("TASK\tdumping files needed by pfbwt\t");
-        p.dump_parse(args.in_fname.data());
+        const auto& parse_ranks = p.get_parse_ranks();
+        vec_to_file(parse_ranks, p.get_parse_size(), args.in_fname + "." + EXTPARSE);
     }
     return 0;
 }
