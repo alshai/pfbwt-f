@@ -5,6 +5,9 @@
 #include <cstdio>
 #include <string>
 #include "mio.hpp"
+extern "C" {
+#include "utils.h"
+}
 
 /* load file using mmap and treat it as an STL container (mio) */
 template<typename T, mio::access_mode AccessMode>
@@ -83,11 +86,9 @@ class VecFile : public std::vector<T> {
     VecFile() {}
 
     VecFile(std::string path) {
-        FILE* fp = fopen(path.data(), "rb");
-        fseek(fp, 0, SEEK_END);
-        size_t size = ftell(fp);
+        size_t size = get_file_size(path.data());
         size_t nelems = size / sizeof(T);
-        rewind(fp);
+        FILE* fp = fopen(path.data(), "rb");
         this->resize(nelems);
         if (fread(&(*this)[0], sizeof(T), this->size(), fp) != nelems) {
             exit(1);

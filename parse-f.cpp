@@ -83,10 +83,19 @@ pfbwtf::ParseArgs parse_args(int argc, char** argv) {
 }
 
 
+template<typename T>
+void vec_to_file(const std::vector<T>& vec, std::string fname) {
+    FILE* fp = fopen(fname.data(), "wb");
+    if (fwrite(vec.data(), sizeof(T), vec.size(), fp) != vec.size() ) {
+        die("could not write file");
+    }
+}
+
 int main(int argc, char** argv) {
     pfbwtf::ParseArgs args(parse_args(argc, argv));
     // build the dictionary and populate .last, .sai and .parse_old
     pfbwtf::Parser<uint32_t, WangHash> p(args.w, args.p);
+    fprintf(stderr, "starting...\n");
     {
         Timer t("TASK\tParsing\t");
         p.parse_fasta(args.in_fname.data(), args.sai);
@@ -101,14 +110,17 @@ int main(int argc, char** argv) {
     }
     {
         Timer t("TASK\tbwt-ing parse and processing last-chars\t");
-        p.bwt_of_parse(args.in_fname.data(), false);
+        p.bwt_of_parse(
+                [&](std::vector<char> bwlast, std::vector<uint32_t> ilist, std::vector<uint32_t> bwsai) {
+                    vec_to_file<char>(bwlast, args.in_fname + "." + EXTBWLST);
+                    vec_to_file<uint32_t>(ilist, args.in_fname + "." + EXTILIST);
+                    if (args.sai) vec_to_file<uint32_t>(bwsai, args.in_fname + "." + EXTBWSAI);
+                }, 
+                args.sai);
     }
     {
         Timer t("TASK\tdumping files needed by pfbwt\t");
         p.dump_parse(args.in_fname.data());
-        p.dump_last(args.in_fname.data());
-        p.dump_bwlast(args.in_fname.data());
-        p.dump_ilist(args.in_fname.data());
     }
     return 0;
 }

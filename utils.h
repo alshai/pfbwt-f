@@ -30,6 +30,7 @@
 
 
 void die(const char *s);
+size_t get_file_size(const char* path);
 FILE *open_aux_file(const char *base, const char *ext, const char *mode);
 FILE *open_aux_file_num(const char *base, const char *ext, const int, const char *mode);
 int fd_open_aux_file(const char *base, const char *ext, int mode);

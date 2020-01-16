@@ -159,3 +159,11 @@ uint8_t seq_nt4_ntoa_table[] = {
     /* 240 */ 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
 };
 
+size_t get_file_size(const char* path) {
+    FILE* fp = fopen(path, "rb");
+    if (fp == NULL) die("error opening file");
+    fseek(fp, 0, SEEK_END);
+    size_t size = ftell(fp);
+    fclose(fp);
+    return size;
+}

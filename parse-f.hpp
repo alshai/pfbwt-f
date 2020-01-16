@@ -48,15 +48,21 @@ struct Parser {
         set_p(pmod);
     }
 
-    void parse_fasta(const char* fname, const bool sai = false) {
-        FILE* sa_fp = NULL;
-        if (sai) sa_fp = open_aux_file(fname, EXTSAI, "wb");
-        // FILE* old_parse_fp = open_aux_file(fname, "parse2", "w");
+    // if get_sai is true, then an IntType is stored for every phrase
+    // encountered (ie., the phrases' position within the text). 
+    // We might consider writing the IntType to file instead in the case that
+    // the number of phrases is huge.
+    void parse_fasta(const char* fname, const bool get_sai = false) {
+        if (get_sai) {
+            sai.clear();
+            // TODO: this is not sufficient when the file is gzipped
+            sai.reserve(get_file_size(fname)+1);
+        }
         gzFile fp = gzopen(fname, "r");
         kseq_t* seq = kseq_init(fp);
         int l;
         size_t nseqs(0);
-        IntType pos = 0;
+        IntType pos(0);
         std::string phrase;
         phrase.append(1, Dollar);
         Hasher hf(w);
@@ -65,27 +71,24 @@ struct Parser {
                 phrase.append(1, seq->seq.s[i]);
                 hf.update(seq->seq.s[i]);
                 if (hf.hashvalue() % p == 0) {
-                    // fprintf(old_parse_fp, "%s\n", phrase.data());
-                    pos = pos ? pos+phrase.size()-w : phrase.size()-1;
-                    process_phrase(phrase, sa_fp, &pos);
+                    process_phrase(phrase);
+                    if (get_sai) {
+                        pos = pos ? pos+phrase.size()-w : phrase.size()-1;
+                        sai.push_back(pos);
+                    } 
                     phrase.erase(0, phrase.size()-w);
                 }
             }
             ++nseqs;
         }
         phrase.append(w, Dollar);
-        // fprintf(old_parse_fp, "%s\n", phrase.data());
-        pos = pos ? pos+phrase.size()-w : phrase.size()-1;
-        process_phrase(phrase, sa_fp, &pos);
-
+        process_phrase(phrase);
+        if (get_sai) {
+            pos = pos ? pos+phrase.size()-w : phrase.size()-1;
+            sai.push_back(pos);
+        }
         kseq_destroy(seq);
         gzclose(fp);
-        // if (fclose(old_parse_fp)) die("error closing PARSE2 file\n");
-        // else fprintf(stderr, "PARSE2 file written to %s.parse2\n", fname);
-        if (sai) {
-            if (fclose(sa_fp)) die("error closing SAI file\n");
-            else (fprintf(stderr, "SAI file written to %s.%s\n", fname, EXTSAI));
-        }
         return;
     }
 
@@ -97,10 +100,8 @@ struct Parser {
         for (auto it = freqs.begin(); it != freqs.end(); ++it) {
             dict_phrases.push_back(it->first.data());
         }
-        fprintf(stderr, "sorting dict\n");
         std::sort(dict_phrases.begin(), dict_phrases.end(),
                 [](const char* l, const char* r) { return strcmp(l, r) <= 0; });
-        fprintf(stderr, "writing dict and occ file...\n");
         FILE* dict_fp = NULL;
         FILE* occ_fp = NULL;
         if (fname != NULL) {
@@ -135,7 +136,7 @@ struct Parser {
 
     void generate_parse_ranks() {
         if (!freqs.size()) {
-            fprintf(stderr, "dictionary not created yet! run update_dict\n");
+            fprintf(stderr, "dictionary not created yet! run update_dict");
             exit(1);
         }
         clear_parse_ranks();
@@ -225,13 +226,15 @@ struct Parser {
         return p;
     }
 
-    // generates bwlast and ilist
-    void bwt_of_parse(const char* fname=NULL, bool get_sai=false) {
+    // generates bwlast and ilist (and bwsai)
+    template<typename OutFn>
+    void bwt_of_parse(OutFn out_fn, bool get_sai=false) {
+        // these will get passed to out_fn at end
+        std::vector<char> bwlast;
+        std::vector<IntType> ilist;
+        std::vector<IntType> bwsai;
+
         size_t n; // size of parse_ranks, minus the last EOS character
-        // TODO: add option for using mmap, or turn into sdsl::int_vector
-        std::vector<IntType> sai; 
-        FILE* sa_fp;
-        bwsai.clear();
         // TODO: support large parse sizes 
         if (parse_ranks.size() > 0x7FFFFFFE) {
             fprintf(stderr, "currently no support for texts w/ > 2^31-2 phrases\n");
@@ -248,36 +251,30 @@ struct Parser {
             k = parse_ranks[i] > k ? parse_ranks[i] : k;
         }
         if (get_sai) {
-            // TODO: use sdsl int-vector instead
-            if (!fname) die("no filename specified\n");
-            sa_fp = open_aux_file(fname, EXTSAI, "rb");
-            sai.reserve(n);
-            fread(&sai[0], sizeof(IntType), n, sa_fp);
+            bwsai.clear();
             bwsai.reserve(n);
-            fclose(sa_fp);
         }
         // compute S.A.
         // we assign instead of reserve in order to be able to use .size()
         assert(sizeof(IntType) >= sizeof(uint_t));
         std::vector<IntType> SA(n+1, 0);
-        fprintf(stderr, "Computing S.A. of size %ld over an alphabet of size %ld\n",n+1,k+1);
+        // fprintf(stderr, "Computing S.A. of size %ld over an alphabet of size %ld\n",n+1,k+1);
         int depth = sacak_int(parse_ranks.data(), SA.data(), n+1, k+1);
-        if(depth>=0) fprintf(stderr, "S.A. computed with depth: %d\n", depth);
-        else die("Error computing the S.A.");
+        if (depth < 0) die("Error computing SA");
+        // if(depth>=0) fprintf(stderr, "S.A. computed with depth: %d\n", depth);
+        // else die("Error computing the S.A.");
         // transform S.A. to BWT in place
         assert(SA[0] == n);
         SA[0] = parse_ranks[n-1];
         bwlast.clear();
         bwlast.reserve(n+1);
         bwlast.push_back(last[n-2]);
-        // TODO: fill bwtsai here
-        // if (get_sai) bwsai.push_back(get_myint(&sai[0], n, n-1));
         if (get_sai) bwsai.push_back(sai[n-1]);
         for (size_t i = 1; i < n+1; ++i) {
             if (!SA[i]) {
                 SA[i] = 0;
                 bwlast.push_back(0);
-                // TODO: write to bwtsai
+                // TODO: write to bwsai
                 if (get_sai) bwsai.push_back(0);
             } else {
                 if (SA[i] == 1) {
@@ -286,67 +283,36 @@ struct Parser {
                     bwlast.push_back(last[SA[i]-2]);
                 }
                 // TODO: write to bwtsai
-                // if (get_sai) bwsai.push_back(get_myint(&sai[0], n, SA[i]-1));
                 if (get_sai) bwsai.push_back(sai[SA[i]-1]);
                 SA[i] = parse_ranks[SA[i] - 1];
             }
         }
-        // in bwtparse, S.A. is copied to BWT (ie. text);
-        // here, we keep on using S.A., since nothing is begin modified 
-        // BWT = BWTSA = S.A.
         std::vector<IntType> F(occs.size()+1, 0);
         F[1] = 1;
         for (size_t i = 2; i < occs.size() + 1; ++i) {
             F[i] = F[i-1] + occs[i-2];
         }
         assert(F[occs.size()] + occs[occs.size()-1] == n+1);
+        // TODO: do we want to store ilist as a bitvector directly?
         ilist.resize(n+1, 0);
         for (size_t i = 0; i < n + 1; ++i) {
             ilist[F[SA[i]]++] = i;
         }
+        // ilist_processor(ilist);
         assert(ilist[0]==1);
         assert(SA[ilist[0]] == 0);
+        out_fn(bwlast, ilist, bwsai);
     }
 
-    void dump_bwlast(const char* fname) {
-        FILE* bwlast_fp = open_aux_file(fname, EXTBWLST, "wb");
-        if (fwrite(bwlast.data(), sizeof(char), bwlast.size(), bwlast_fp) != bwlast.size() ) {
-            die("could not write BWTLST");
-        }
-        if (fclose(bwlast_fp)) die("failed writing to BWTLST");
-        else fprintf(stderr, "bwlast written to %s.%s\n", fname, EXTBWLST);
 
-    }
-
-    void dump_ilist(const char* fname) {
-        FILE* ilist_fp = open_aux_file(fname, EXTILIST, "wb");
-        if (fwrite(ilist.data(), sizeof(ilist[0]), ilist.size(), ilist_fp) != ilist.size() ) {
-            die("could not write ILIST");
-        }
-        if (fclose(ilist_fp)) die("failed writing to EXTILIST");
-        else fprintf(stderr, "ilist written to %s.%s\n", fname, EXTILIST);
-    }
-
-    void dump_bwsai(const char* fname) {
-        FILE* sa_fp = open_aux_file(fname, EXTBWSAI, "wb");
-        if (fwrite(bwsai.data(), 1, bwsai.size(), sa_fp) != bwsai.size()) { 
-            die("could not write BWSAI");
-        }
-        if (fclose(sa_fp)) die("failed writing to BWSAI");
-        else fprintf(stderr, "bwsai written to %s.%s.", fname, EXTBWSAI);
-    }
 
     private:
 
-    void inline process_phrase(const std::string& phrase, FILE* sa_fp=NULL, IntType* pos=NULL) {
+    void inline process_phrase(const std::string& phrase) {
         auto ret = freqs.insert({phrase, Freq<IntType>(1)});
         if (!ret.second) ret.first->second.n += 1;
         parse.push_back(ret.first->first.data());
         last.push_back(phrase[phrase.size()-w-1]);
-        if (sa_fp != NULL) {
-            if(fwrite(pos, sizeof(IntType), 1, sa_fp) != 1)
-                die("error writing to .sai file\n");
-        }
     }
 
     FreqMap freqs;
@@ -354,10 +320,7 @@ struct Parser {
     std::vector<IntType> occs;
     std::vector<IntType> parse_ranks;
     std::vector<char> last;
-    std::vector<char> bwlast;
-    // sdsl::int_vector< bwlast;
-    std::vector<IntType> ilist;
-    std::vector<IntType> bwsai;
+    std::vector<IntType> sai;
     size_t w, p;
 };
 }; // namespace end
