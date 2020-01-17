@@ -8,6 +8,7 @@
 #include <vector>
 #include <fcntl.h>
 #include "sdsl/bit_vectors.hpp"
+#include "sdsl_bv_wrappers.hpp"
 extern "C" {
 #include <sys/mman.h>
 #include "utils.h"
@@ -54,8 +55,8 @@ class PrefixFreeBWT {
     }
 
 #define get_word_suflen(i, d, s) \
-    d = dict_idx_rank(i); \
-    s = d>=dwords ? dsize-i : dict_idx_select(d+1) - i;
+    d = dict_idx.rank(i); \
+    s = d>=dwords ? dsize-i : dict_idx.select(d+1) - i;
 
      /* uses LCP of dict to build BWT (less memory, more time)
      */
@@ -173,38 +174,13 @@ class PrefixFreeBWT {
         for (size_t i = 1; i < dwords + 1; ++i) {
             dict_idx[sa[i]] = 1;
         }
-        sdsl::util::init_support(dict_idx_rank, &dict_idx);
-        sdsl::util::init_support(dict_idx_select, &dict_idx);
-        dict[0] = 0;
+        dict_idx.init_rs();
+        dict[0] = 0; // TODO: I would rather not write *anything* to dict
     }
 
-    /*
-    void load_files(std::string prefix, bool sa=false) {
-        dict = ConType<uint8_t>(prefix + "." + EXTDICT);
-        bwast = ConType<uint8_t>(prefix + "." + EXTBWLST);
-        ilist = ConType<IntType>(prefix + "." + EXTILIST);
-        load_ilist_idx(prefix);
-        if (sa) bwsai = ConType<IntType>(prefix + "." + EXTBWSAI)
-    }
-    */
 
     void load_ilist_idx(std::string fname) {
         ReadConType<IntType> occs(fname + "." + EXTOCC);
-        /*
-        FILE* occ_fp = open_aux_file(fname.data(), EXTOCC, "rb");
-        // get occs size
-        fseek(occ_fp, 0, SEEK_END);
-        size_t osize = ftell(occ_fp);
-        if (osize % 4 != 0) die("invalid occ file");
-        dwords = osize / sizeof(IntType);
-        rewind(occ_fp);
-        std::vector<uint32_t> occs(dwords);
-        if (fread(&occs[0], sizeof(IntType), occs.size(), occ_fp) != dwords) {
-            die("error reading occs");
-        }
-        int total_occs = 0;
-        for (auto o: occs) total_occs += o;
-        */
         dwords = occs.size();
         int total_occs = 0;
         for (size_t i = 0; i < occs.size(); ++i) 
@@ -215,27 +191,24 @@ class PrefixFreeBWT {
             o += occs[i];
             ilist_idx[o-1] = 1;
         }
-        sdsl::util::init_support(ilist_idx_rank,   &ilist_idx);
-        sdsl::util::init_support(ilist_idx_select, &ilist_idx);
-        // fclose(occ_fp);
+        ilist_idx.init_rs();
     }
 
     size_t get_ilist_size(size_t wordi) {
-        auto startpos = wordi ? ilist_idx_select(wordi) + 1 : 0;
-        auto endpos = wordi >= dwords ? ilist.size()-1 : ilist_idx_select(wordi+1);
+        auto startpos = wordi ? ilist_idx.select(wordi) + 1 : 0;
+        auto endpos = wordi >= dwords ? ilist.size()-1 : ilist_idx.select(wordi+1);
         return endpos - startpos + 1;
     }
 
     std::vector<size_t> get_word_ilist(size_t wordi) {
         // get to the end of the previous word's list, then add one to get
         // to the start of the current word
-        auto startpos = wordi ? ilist_idx_select(wordi) + 1 : 0;
-        auto endpos = wordi >= dwords ? ilist.size()-1 : ilist_idx_select(wordi+1);
+        auto startpos = wordi ? ilist_idx.select(wordi) + 1 : 0;
+        auto endpos = wordi >= dwords ? ilist.size()-1 : ilist_idx.select(wordi+1);
         std::vector<size_t> v;
         v.reserve(endpos - startpos + 1);
         for (size_t j = startpos+1; j < endpos+2; ++j)
             v.push_back(ilist[j]);
-        // fprintf(stderr, "%lu %lu\n", startpos+1, endpos+1);
         return v;
     }
 
@@ -247,12 +220,9 @@ class PrefixFreeBWT {
     ReadConType<uint8_t> bwlast; // parse-bwt char associated w/ ilist
     ReadConType<IntType> ilist; // bwlast positions of dict words
     ReadConType<IntType> bwsai; // TODO: this might need a separate IntType
-    sdsl::bit_vector ilist_idx; // 1 on ends of dict word occs in ilist
-    sdsl::bit_vector dict_idx; // 1 on word end positions in dict
-    sdsl::bit_vector::rank_1_type   ilist_idx_rank;
-    sdsl::bit_vector::rank_1_type   dict_idx_rank;
-    sdsl::bit_vector::select_1_type ilist_idx_select;
-    sdsl::bit_vector::select_1_type dict_idx_select;
+    // sdsl::bit_vector ilist_idx; // 1 on ends of dict word occs in ilist
+    bv_rs<> ilist_idx; // 1 on ends of dict word occs in ilist
+    bv_rs<> dict_idx; // 1 on word end positions in dict
     // TODO: implement read-writable ConType so we can handle these
     //       this is important bc memory bottleneck is here
     std::vector<uint_t> sa; // gSA of dict words
