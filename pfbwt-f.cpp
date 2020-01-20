@@ -13,6 +13,7 @@ struct PrefixFreeBWTArgs {
     std::string prefix;
     int w = 10;
     bool sa = false;
+    bool mmap = false;
 };
 
 void print_help() {
@@ -23,13 +24,13 @@ PrefixFreeBWTArgs parse_args(int argc, char** argv) {
     PrefixFreeBWTArgs args;
     int c;
 
-    // fputs("==== Command line:", stderr);
-    // for(int i=0;i<argc;i++)
-    //     fprintf(stderr, " %s",argv[i]);
-    // fputs("\n", stderr);
+    fputs("==== Command line:", stderr);
+    for(int i=0;i<argc;i++)
+        fprintf(stderr, " %s",argv[i]);
+    fputs("\n", stderr);
 
     std::string sarg;
-    while ((c = getopt( argc, argv, "w:hsf") ) != -1) {
+    while ((c = getopt( argc, argv, "w:hsfm") ) != -1) {
         switch(c) {
             case 'f': // legacy
                 break;
@@ -39,6 +40,8 @@ PrefixFreeBWTArgs parse_args(int argc, char** argv) {
                 args.w = atoi(optarg); break;
             case 'h':
                 print_help(); exit(1);
+            case 'm':
+                args.mmap = true; break;
             case '?':
                 fprintf(stderr, "Unknown option. Use -h for help.\n");
                 exit(1);
@@ -57,10 +60,17 @@ PrefixFreeBWTArgs parse_args(int argc, char** argv) {
 }
 
 void run_pfbwt(PrefixFreeBWTArgs args) {
-    // pfbwtf::PrefixFreeBWT<uint32_t, MMapFileSource, MMapFileSink> p(args.prefix, args.w); // load dict, ilist, last, etc
-    pfbwtf::PrefixFreeBWT<uint32_t, VecFileSource, VecFileSinkPrivate> p(args.prefix, args.w); // load dict, ilist, last, etc
     FILE* bwt_fp = open_aux_file(args.prefix.data(),"bwt","wb");
-    p.generate_bwt_lcp([&bwt_fp](pfbwtf::BwtT b) { fputc(b.c, bwt_fp); });
+    if (args.mmap) {
+        fprintf(stderr, "workspace will be contained on disk (mmap)\n");
+        pfbwtf::PrefixFreeBWT<uint32_t, MMapFileSource, MMapFileSink> p(args.prefix, args.w); // load dict, ilist, last, etc
+        p.generate_bwt_lcp([&bwt_fp](pfbwtf::BwtT b) { fputc(b.c, bwt_fp); });
+    }
+    else {
+        fprintf(stderr, "workspace will be contained in memory\n");
+        pfbwtf::PrefixFreeBWT<uint32_t, VecFileSource, VecFileSinkPrivate> p(args.prefix, args.w); // load dict, ilist, last, etc
+        p.generate_bwt_lcp([&bwt_fp](pfbwtf::BwtT b) { fputc(b.c, bwt_fp); });
+    }
     fclose(bwt_fp);
 }
 
