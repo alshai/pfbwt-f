@@ -1,3 +1,4 @@
+/* TODO: modify code so we don't need this next statement, for portability */
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>

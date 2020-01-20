@@ -58,7 +58,7 @@ PrefixFreeBWTArgs parse_args(int argc, char** argv) {
 
 void run_pfbwt(PrefixFreeBWTArgs args) {
     // pfbwtf::PrefixFreeBWT<uint32_t, MMapFileSource, MMapFileSink> p(args.prefix, args.w); // load dict, ilist, last, etc
-    pfbwtf::PrefixFreeBWT<uint32_t, VecFile, VecFile> p(args.prefix, args.w); // load dict, ilist, last, etc
+    pfbwtf::PrefixFreeBWT<uint32_t, VecFileSource, VecFileSinkPrivate> p(args.prefix, args.w); // load dict, ilist, last, etc
     FILE* bwt_fp = open_aux_file(args.prefix.data(),"bwt","wb");
     p.generate_bwt_lcp([&bwt_fp](pfbwtf::BwtT b) { fputc(b.c, bwt_fp); });
     fclose(bwt_fp);

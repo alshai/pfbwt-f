@@ -24,16 +24,16 @@ struct SuffixT {
     bool operator<(SuffixT& r);
 };
 
+bool SuffixT::operator<(SuffixT& r) {
+    return this->bwtp < r.bwtp;
+}
+
 struct BwtT {
     BwtT(char ch, uint_t sa, bool b) : c(ch), s(sa), sa(b) {}
     char c; // BWT[i]
     uint_t s; // SA[i]
     bool sa; // whether s should be read or not
 };
-
-bool SuffixT::operator<(SuffixT& r) {
-    return this->bwtp < r.bwtp;
-}
 
 template<typename IntType, 
          template <typename, typename...> typename ReadConType,
@@ -44,6 +44,7 @@ class PrefixFreeBWT {
     public:
 
     PrefixFreeBWT(std::string prefix, size_t win_size, bool sa = false) :
+        fname(prefix),
         w ( win_size),
         dict ( WriteConType<uint8_t>(prefix + "." + EXTDICT)),
         bwlast ( ReadConType<uint8_t>(prefix + "." + EXTBWLST)),
@@ -62,7 +63,7 @@ class PrefixFreeBWT {
      */
     template<typename F>
     void generate_bwt_lcp(F bwt_processor, bool build_sa=false) {
-        sort_dict_suffixes(true); // build SA and lcp
+        sort_dict_suffixes(true); // build gSA and gLCP of dict
         // start from SA item that's not EndOfWord or EndOfDict
         size_t next, suff_len, wordi, ilist_pos;
         uint8_t bwtc, pbwtc = 0;
@@ -70,10 +71,10 @@ class PrefixFreeBWT {
         for (size_t i = dwords+w+1; i<dsize; i=next) {
             next = i+1;
             // fprintf(stdout, "%lu\n", sa[i]);
-            get_word_suflen(sa[i], wordi, suff_len);
+            get_word_suflen(gsa[i], wordi, suff_len);
             if (suff_len <= w) continue; // ignore small suffixes
             // full word case
-            if (sa[i] == 0 || dict_idx[sa[i]-1] == 1) {
+            if (gsa[i] == 0 || dict_idx[gsa[i]-1] == 1) {
                 auto word_ilist = get_word_ilist(wordi);
                 for (auto j: word_ilist) {
                     bwtc = bwlast[j];
@@ -92,15 +93,15 @@ class PrefixFreeBWT {
                 size_t nwordi, nsuff_len;
                 std::vector<uint8_t> chars;
                 std::vector<uint64_t> words;
-                uint8_t c, pc = dict[sa[i]-1];
+                uint8_t c, pc = dict[gsa[i]-1];
                 chars.push_back(pc);
                 words.push_back(wordi);
                 bool same_char = true;
                 size_t j;
-                for (j = i + 1; j < dsize && lcp[j] >= (int_t) suff_len; ++j) {
-                    get_word_suflen(sa[j], nwordi, nsuff_len);
+                for (j = i + 1; j < dsize && glcp[j] >= (int_t) suff_len; ++j) {
+                    get_word_suflen(gsa[j], nwordi, nsuff_len);
                     if (nsuff_len != suff_len) die("something went wrong!");
-                    c = dict[sa[j]-1];
+                    c = dict[gsa[j]-1];
                     chars.push_back(c);
                     words.push_back(nwordi);
                     same_char = same_char ? (c == pc) : 0;
@@ -161,18 +162,18 @@ class PrefixFreeBWT {
      */
     void sort_dict_suffixes(bool build_lcp = true) {
         if (dsize < 1) die("error: dictionary not loaded\n");
-        sa.resize(dsize);
-        lcp.resize(dsize);
+        gsa.init_file(fname + "." + EXTGSA, dsize);
+        glcp.init_file(fname + "." + EXTGLCP, dsize);
         if (build_lcp)
-            gsacak(&dict[0], &sa[0], &lcp[0], NULL, dsize);
+            gsacak(&dict[0], &gsa[0], &glcp[0], NULL, dsize);
         else { // for when memory is low
-            gsacak(&dict[0], &sa[0], NULL, NULL, dsize);
+            gsacak(&dict[0], &gsa[0], NULL, NULL, dsize);
             // TODO: build FM index over dict
         }
         // make index of dict end positions
         dict_idx = sdsl::bit_vector(dsize, 0);
         for (size_t i = 1; i < dwords + 1; ++i) {
-            dict_idx[sa[i]] = 1;
+            dict_idx[gsa[i]] = 1;
         }
         dict_idx.init_rs();
         dict[0] = 0; // TODO: I would rather not write *anything* to dict
@@ -212,6 +213,7 @@ class PrefixFreeBWT {
         return v;
     }
 
+    std::string fname; // prefix fname for storing and loading relevant files
     size_t w=10; // word size of parser
     bool mmapped = false;
     uint64_t dsize; // number of characters in dict
@@ -220,13 +222,10 @@ class PrefixFreeBWT {
     ReadConType<uint8_t> bwlast; // parse-bwt char associated w/ ilist
     ReadConType<IntType> ilist; // bwlast positions of dict words
     ReadConType<IntType> bwsai; // TODO: this might need a separate IntType
-    // sdsl::bit_vector ilist_idx; // 1 on ends of dict word occs in ilist
+    WriteConType<uint_t> gsa; // gSA of dict words
+    WriteConType<int_t> glcp; // gLCP of dict words
     bv_rs<> ilist_idx; // 1 on ends of dict word occs in ilist
     bv_rs<> dict_idx; // 1 on word end positions in dict
-    // TODO: implement read-writable ConType so we can handle these
-    //       this is important bc memory bottleneck is here
-    std::vector<uint_t> sa; // gSA of dict words
-    std::vector<int_t> lcp; // gLCP of dict words
 };
 }; // namespace end
 #endif

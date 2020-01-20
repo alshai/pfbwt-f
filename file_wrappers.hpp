@@ -28,10 +28,31 @@ class MMapFile {
     MMapFile(std::string path) :
         mm(path)
     {
-        if (mm.size() %  sizeof(T) != 0) {
-            fprintf(stderr, "error: file is not evenly divided into size(T)-sized words\n");
-            exit(1);
+        if (!mm.size()) {
+            die("MMapFile: file empty!");
         }
+        if (mm.size() %  sizeof(T) != 0) {
+            die("error: file is not evenly divided into size(T)-sized words");
+        }
+    }
+
+    /* start fresh from a file, given a size 
+     * size is number of elements, not number of bytes
+     */
+    void init_file(std::string path, size_t size) {
+        // make sure that file is 'cleared' and set to the appropriate size
+        FILE* fp = fopen(path.data(), "wb");
+        if (fp) {
+            fclose(fp);
+        } else {
+            die("error opening file");
+        }
+        if (truncate(path.data(), size * sizeof(T))) {
+            die("error setting file size");
+        }
+        // map file
+        std::error_code e;
+        mm.map(path, 0, size * sizeof(T), e);
     }
 
     template<mio::access_mode A = AccessMode, typename = typename std::enable_if<A == mio::access_mode::write>::type>
@@ -74,18 +95,49 @@ class MMapFile {
 template<typename T>
 using MMapFileSource = MMapFile<T, mio::access_mode::read>;
 
+/* NOTE: I think this is MAP_SHARED by default. 
+ * TODO: add option for MAP_PRIVATE */
 template<typename T>
 using MMapFileSink = MMapFile<T, mio::access_mode::write>;
 
-/* load a file into std::vector using default allocation behaviour (probably malloc) */
+/* loads a file into a read-only vector. neither the data nor the underlying
+ * file are allowed to be changed */
 template<typename T>
-class VecFile : public std::vector<T> {
+class VecFileSource : private std::vector<T> {
 
     public:
 
-    VecFile() {}
+    VecFileSource() = default;
 
-    VecFile(std::string path) {
+    VecFileSource(std::string path) {
+        size_t size = get_file_size(path.data());
+        size_t nelems = size / sizeof(T);
+        FILE* fp = fopen(path.data(), "rb");
+        this->resize(nelems);
+        if (fread(&(this->data())[0], sizeof(T), this->size(), fp) != nelems) {
+            exit(1);
+        }
+        fclose(fp);
+    }
+
+    typename std::vector<T>::const_reference operator[](typename std::vector<T>::size_type i) const {
+        return std::vector<T>::operator[](i);
+    }
+
+    typename std::vector<T>::size_type size() const {
+        return std::vector<T>::size();
+    }
+};
+
+template<typename T>
+class VecFileSink : public std::vector<T> {
+
+    public:
+
+    VecFileSink() = default;
+
+    /* load data from whole file */
+    VecFileSink(std::string path) : fname(path) {
         size_t size = get_file_size(path.data());
         size_t nelems = size / sizeof(T);
         FILE* fp = fopen(path.data(), "rb");
@@ -96,6 +148,43 @@ class VecFile : public std::vector<T> {
         fclose(fp);
     }
 
+    /* use when initialized with default constructor in order to reserve heap space
+     * for an empty vector and store the file name to which the vector will be written
+     * upon destruction
+     */ 
+    void init_file(std::string path, size_t s) {
+        fname = path;
+        this->resize(s);
+    }
+
+    protected:
+    
+    std::string fname;
 };
 
+/* use this when you want allow the underlying file to reflect
+ * any changes made to its data */
+template<typename T>
+class VecFileSinkShared : public VecFileSink<T> {
+    public:
+    
+    VecFileSinkShared() = default;
+    VecFileSinkShared(std::string s) : VecFileSink<T>(s) {};
+
+    /* writes data to file before exiting */
+    ~VecFileSinkShared() {
+        if (this->fname == "") {
+            fprintf(stderr, "no file specified. Data will not be saved to disk\n");
+        } else {
+            FILE* fp = fopen(this->fname.data(), "wb");
+            if (fwrite(&(this->data())[0], sizeof(T), this->size(), fp) != this->size()) {
+                die("unable to write data");
+            }
+            fclose(fp);
+        }
+    }
+};
+
+template<typename T>
+using VecFileSinkPrivate = VecFileSink<T>;
 #endif

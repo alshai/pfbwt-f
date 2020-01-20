@@ -27,6 +27,8 @@
 #define EXTSA    "sa"
 #define EXTSSA   "ssa"
 #define EXTESA   "esa"
+#define EXTGSA   "gsa"
+#define EXTGLCP  "glcp"
 
 
 void die(const char *s);

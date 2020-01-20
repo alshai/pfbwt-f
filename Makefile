@@ -20,7 +20,7 @@ gsa/gsacak64.o: gsa/gsacak.c gsa/gsacak.h
 parse-f: parse-f.cpp utils.o gsa/gsacak.o parse-f.hpp
 	$(CXX) $(CXX_FLAGS) -I./sdsl-lite/include -o $@ parse-f.cpp utils.o gsa/gsacak.o -lz
 
-pfbwt-f: pfbwt-f.cpp utils.o gsa/gsacak.o pfbwt-f.hpp
+pfbwt-f: pfbwt-f.cpp utils.o gsa/gsacak.o pfbwt-f.hpp file_wrappers.hpp
 	$(CXX) $(CXX_FLAGS) -I./ -I./sdsl-lite/include -o $@ pfbwt-f.cpp utils.o gsa/gsacak.o -lz
 
 simplebwt: simplebwt.o gsa/gsacak.o
