@@ -87,7 +87,7 @@ class PrefixFreeBWT {
                 size_t nwordi, nsuff_len;
                 std::vector<uint8_t> chars;
                 std::vector<uint64_t> words;
-                uint8_t c, pc = dict[gsa[i]-1];
+                uint8_t c, pc = gsa[i]-1 ? dict[gsa[i]-1] : 0;
                 chars.push_back(pc);
                 words.push_back(wordi);
                 bool same_char = true;
@@ -95,7 +95,7 @@ class PrefixFreeBWT {
                 for (j = i + 1; j < dsize && glcp[j] >= (int_t) suff_len; ++j) {
                     get_word_suflen(gsa[j], nwordi, nsuff_len);
                     if (nsuff_len != suff_len) die("something went wrong!");
-                    c = dict[gsa[j]-1];
+                    c = gsa[j]-1 ? dict[gsa[j]-1] : 0;
                     chars.push_back(c);
                     words.push_back(nwordi);
                     same_char = same_char ? (c == pc) : 0;
@@ -170,8 +170,6 @@ class PrefixFreeBWT {
             dict_idx[gsa[i]] = 1;
         }
         dict_idx.init_rs();
-        // TODO: don't overwrite dict!
-        dict[0] = 0;
     }
 
 
