@@ -65,17 +65,21 @@ template<typename IntType,
          >
 void run_pfbwt(PrefixFreeBWTArgs args) {
     FILE* bwt_fp = open_aux_file(args.prefix.data(),"bwt","wb");
-    FILE* sa_fp = args.sa ? open_aux_file(args.prefix.data(), EXTSA, "wb") : NULL;
     pfbwtf::PrefixFreeBWT<IntType, R, W> p(args.prefix, args.w, args.sa);
     auto bwt_fn = [bwt_fp, args](char c) {
         fputc(c, bwt_fp);
     };
-    auto sa_fn = [&](const uint32_t s) {
-        fwrite(&s, sizeof(uint32_t), 1, sa_fp);
-    };
-    p.generate_bwt_lcp(bwt_fn, sa_fn);
+    if (args.sa) {
+        FILE* sa_fp = args.sa ? open_aux_file(args.prefix.data(), EXTSA, "wb") : NULL;
+        auto sa_fn = [&](const IntType s) {
+            fwrite(&s, sizeof(IntType), 1, sa_fp);
+        };
+        p.generate_bwt_lcp(bwt_fn, sa_fn);
+        fclose(sa_fp);
+    } else {
+        p.generate_bwt_lcp(bwt_fn, [](const IntType s){(void) s;});
+    }
     fclose(bwt_fp);
-    if (sa_fp) fclose(sa_fp);
 }
 
 int main(int argc, char** argv) {
