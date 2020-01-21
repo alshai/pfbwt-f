@@ -9,7 +9,10 @@ extern "C" {
 #include "utils.h"
 }
 
-/* load file using mmap and treat it as an STL container (mio) */
+/* load file using mmap and treat it as an STL container (mio) 
+ * TODO: create a MAP_PRIVATE version
+ */
+
 template<typename T, mio::access_mode AccessMode>
 class MMapFile {
 

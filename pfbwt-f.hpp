@@ -18,9 +18,10 @@ extern "C" {
 namespace pfbwtf {
 
 struct SuffixT {
-    SuffixT(uint8_t c, uint32_t i) : bwtc(c), bwtp(i) {}
+    SuffixT(uint8_t c, uint32_t i, uint_t w) : bwtc(c), bwtp(i), wordi(w) {}
     uint8_t bwtc;
-    size_t bwtp;
+    uint32_t bwtp;
+    uint_t wordi;
     bool operator<(SuffixT& r);
 };
 
@@ -28,14 +29,7 @@ bool SuffixT::operator<(SuffixT& r) {
     return this->bwtp < r.bwtp;
 }
 
-struct BwtT {
-    BwtT(char ch, uint_t sa, bool b) : c(ch), s(sa), sa(b) {}
-    char c; // BWT[i]
-    uint_t s; // SA[i]
-    bool sa; // whether s should be read or not
-};
-
-template<typename IntType, 
+template<typename IntType,
          template <typename, typename...> typename ReadConType,
          template <typename, typename...> typename WriteConType
          >
@@ -48,7 +42,8 @@ class PrefixFreeBWT {
         w ( win_size),
         dict ( WriteConType<uint8_t>(prefix + "." + EXTDICT)),
         bwlast ( ReadConType<uint8_t>(prefix + "." + EXTBWLST)),
-        ilist ( ReadConType<IntType>(prefix + "." + EXTILIST))
+        ilist ( ReadConType<IntType>(prefix + "." + EXTILIST)),
+        build_sa(sa)
     {
         dsize = dict.size();
         load_ilist_idx(prefix);
@@ -61,16 +56,16 @@ class PrefixFreeBWT {
 
      /* uses LCP of dict to build BWT (less memory, more time)
      */
-    template<typename F>
-    void generate_bwt_lcp(F bwt_processor, bool build_sa=false) {
+    template<typename BFn, typename SFn>
+    void generate_bwt_lcp(BFn bwt_fn, SFn sa_fn) {
+        FILE* sa_fp = fopen((fname + ".sa").data(), "wb");
         sort_dict_suffixes(true); // build gSA and gLCP of dict
         // start from SA item that's not EndOfWord or EndOfDict
-        size_t next, suff_len, wordi, ilist_pos;
+        size_t next, suff_len, wordi;
         uint8_t bwtc, pbwtc = 0;
         size_t easy_cases = 0, hard_cases = 0;
         for (size_t i = dwords+w+1; i<dsize; i=next) {
             next = i+1;
-            // fprintf(stdout, "%lu\n", sa[i]);
             get_word_suflen(gsa[i], wordi, suff_len);
             if (suff_len <= w) continue; // ignore small suffixes
             // full word case
@@ -79,13 +74,12 @@ class PrefixFreeBWT {
                 for (auto j: word_ilist) {
                     bwtc = bwlast[j];
                     // TODO: do SA/DA/etc stuff here,
-                    if (build_sa) {
-                        // get SA
-                        bwt_processor(BwtT(bwtc, 0, false));
-                    }  else {
-                        bwt_processor(BwtT(bwtc, 0, false));
+                    if (build_sa && wordi > 0) {
+                        auto sa = bwsai[j] - suff_len;
+                        sa_fn(sa);
                     }
-                    pbwtc = bwtc; // for SA
+                    bwt_fn(bwtc);
+                    pbwtc = bwtc; // for sampled SA
                 }
                 ++easy_cases;
             } else { // hard case!
@@ -107,18 +101,16 @@ class PrefixFreeBWT {
                     same_char = same_char ? (c == pc) : 0;
                     pc = c;
                 } // everything seemingly good up till here.
-                next = j;
-                if (same_char || (build_sa && (words.size() == 1)) ) {
+                if ((!build_sa && same_char) || (build_sa && (words.size() == 1)) ) {
                     // print c to bwt after getting all the lengths
                     for (auto word: words)  {
-                        size_t nilist = get_ilist_size(word);
-                        for (size_t k = 0; k < nilist; ++k) {
+                        for (auto k: get_word_ilist(word)) {
                             if (build_sa) {
                                 // get SA
-                                bwt_processor(BwtT(chars[0], 0, false));
-                            } else {
-                                bwt_processor(BwtT(chars[0], 0, false));
+                                auto sa = bwsai[k] - suff_len;
+                                sa_fn(sa);
                             }
+                            bwt_fn(chars[0]);
                         }
                     }
                     ++easy_cases;
@@ -128,25 +120,27 @@ class PrefixFreeBWT {
                     std::vector<SuffixT> suffs;
                     for (size_t idx = 0; idx < words.size(); ++idx) {
                         // get ilist of each of these words, make a heap
-                        for (auto word: get_word_ilist(words[idx])) {
-                            suffs.push_back(SuffixT(chars[idx], word));
+                        auto word = words[idx];
+                        for (auto k: get_word_ilist(word)) {
+                            suffs.push_back(SuffixT(chars[idx], k, word));
                         }
                     }
                     std::sort(suffs.begin(), suffs.end());
                     for (auto s: suffs) {
                         if (build_sa) {
-                            // get SA
-                            bwt_processor(BwtT(s.bwtc, 0, false));
-                        } else {
-                            bwt_processor(BwtT(s.bwtc, 0, false));
+                            auto sa = bwsai[s.bwtp] - suff_len;
+                            sa_fn(sa);
                         }
+                        bwt_fn(s.bwtc);
                     }
                     ++hard_cases;
                 }
                 chars.clear();
                 words.clear();
+                next = j;
             }
         }
+        fclose(sa_fp);
         return;
     }
 
@@ -176,7 +170,8 @@ class PrefixFreeBWT {
             dict_idx[gsa[i]] = 1;
         }
         dict_idx.init_rs();
-        dict[0] = 0; // TODO: I would rather not write *anything* to dict
+        // TODO: don't overwrite dict!
+        dict[0] = 0;
     }
 
 
@@ -184,7 +179,7 @@ class PrefixFreeBWT {
         ReadConType<IntType> occs(fname + "." + EXTOCC);
         dwords = occs.size();
         int total_occs = 0;
-        for (size_t i = 0; i < occs.size(); ++i) 
+        for (size_t i = 0; i < occs.size(); ++i)
             total_occs += occs[i];
         ilist_idx = sdsl::bit_vector(total_occs+occs[dwords-1], 0); // TODO: do an assert here
         size_t o = 0;
@@ -224,8 +219,9 @@ class PrefixFreeBWT {
     ReadConType<IntType> bwsai; // TODO: this might need a separate IntType
     WriteConType<uint_t> gsa; // gSA of dict words
     WriteConType<int_t> glcp; // gLCP of dict words
-    bv_rs<> ilist_idx; // 1 on ends of dict word occs in ilist
-    bv_rs<> dict_idx; // 1 on word end positions in dict
+    bv_rs<> ilist_idx; // bitvec w/ 1 on ends of dict word occs in ilist
+    bv_rs<> dict_idx; // bitvec w/ 1 on word end positions in dict
+    bool build_sa = false;
 };
 }; // namespace end
 #endif

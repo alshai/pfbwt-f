@@ -59,22 +59,32 @@ PrefixFreeBWTArgs parse_args(int argc, char** argv) {
     return args;
 }
 
+template<typename IntType,
+         template<typename, typename...> typename R,
+         template<typename, typename...> typename W
+         >
 void run_pfbwt(PrefixFreeBWTArgs args) {
     FILE* bwt_fp = open_aux_file(args.prefix.data(),"bwt","wb");
-    if (args.mmap) {
-        fprintf(stderr, "workspace will be contained on disk (mmap)\n");
-        pfbwtf::PrefixFreeBWT<uint32_t, MMapFileSource, MMapFileSink> p(args.prefix, args.w); // load dict, ilist, last, etc
-        p.generate_bwt_lcp([&bwt_fp](pfbwtf::BwtT b) { fputc(b.c, bwt_fp); });
-    }
-    else {
-        fprintf(stderr, "workspace will be contained in memory\n");
-        pfbwtf::PrefixFreeBWT<uint32_t, VecFileSource, VecFileSinkPrivate> p(args.prefix, args.w); // load dict, ilist, last, etc
-        p.generate_bwt_lcp([&bwt_fp](pfbwtf::BwtT b) { fputc(b.c, bwt_fp); });
-    }
+    FILE* sa_fp = args.sa ? open_aux_file(args.prefix.data(), EXTSA, "wb") : NULL;
+    pfbwtf::PrefixFreeBWT<IntType, R, W> p(args.prefix, args.w, args.sa);
+    auto bwt_fn = [bwt_fp, args](char c) {
+        fputc(c, bwt_fp);
+    };
+    auto sa_fn = [&](const uint32_t s) {
+        fwrite(&s, sizeof(uint32_t), 1, sa_fp);
+    };
+    p.generate_bwt_lcp(bwt_fn, sa_fn);
     fclose(bwt_fp);
+    if (sa_fp) fclose(sa_fp);
 }
 
 int main(int argc, char** argv) {
     PrefixFreeBWTArgs args(parse_args(argc, argv));
-    run_pfbwt(args);
+    if (args.mmap) {
+        fprintf(stderr, "workspace will be contained on disk (mmap)\n");
+        run_pfbwt<uint32_t, MMapFileSource, MMapFileSink>(args);
+    } else {
+        fprintf(stderr, "workspace will be contained in memory\n");
+        run_pfbwt<uint32_t, VecFileSource, VecFileSinkPrivate>(args);
+    }
 }

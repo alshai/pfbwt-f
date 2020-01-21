@@ -1,7 +1,8 @@
 # compilation flags
-CXX_FLAGS=-std=c++11 -Ofast -Wall -Wextra -g
+CXX_FLAGS=-std=c++11 -Ofast -Wall -Wextra -g -march=native
 CFLAGS=-O3 -Wall -std=c99 -g
 CC=gcc
+CXX=g++
 
 # main executables 
 EXECS=pfbwt-f parse-f

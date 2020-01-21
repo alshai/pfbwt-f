@@ -23,7 +23,7 @@ constructed **even when the size of the workspace needed for this algorithm exce
 
 Features that will be added soon.
 
-* Full, Sampled and/or Run-Length Suffix Array.
+* ~~Full,~~ Sampled and/or Run-Length Suffix Array.
 * Document Array and other SA-related data structures.
 * Thread support
 * Clearer separation of 32-bit and 64-bit modes
