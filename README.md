@@ -49,6 +49,7 @@ make
 NOTE: The input file should not contain the characters 0x00, 0x01, and 0x02,
 each of which are used by the internal algorithms.
 
+
 2) build the BWT. Make sure the window size is the same one as used in `parse-f`.
 
 ```
@@ -58,3 +59,24 @@ each of which are used by the internal algorithms.
 The final BWT will be located in `x.fa.bwt`. This file will contain one extra
 character from the input (0x00) - this represents the end-of-string symbol of
 the text.
+
+
+## Some features
+
+Output the full Suffix Array to `<x.fa>.sa`:
+
+```
+./parse-f -w <window size> -s -p <hash mod value> <x.fa>
+./pfbwt-f -w <window size> -s <x.fa>
+```
+
+The output is formatted as consecutive 32-bit integers, no delimiters (64-bit support coming soon!).
+
+Output the run-length Suffix Array to `<x.fa>.ssa` (run-starts) and `<x.fa>.esa` (run-ends):
+
+```
+./parse-f -w <window size> -s -p <hash mod value> <x.fa>
+./pfbwt-f -w <window size> -r <x.fa>
+```
+
+The output is formatted as consecutive pairs of 32-bit integers (position in BWT, SA sample), no delimiters (64-bit support coming soon!).
