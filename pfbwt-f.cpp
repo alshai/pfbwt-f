@@ -13,6 +13,7 @@ struct PrefixFreeBWTArgs {
     std::string prefix;
     int w = 10;
     bool sa = false;
+    bool rssa = false;
     bool mmap = false;
 };
 
@@ -30,12 +31,14 @@ PrefixFreeBWTArgs parse_args(int argc, char** argv) {
     fputs("\n", stderr);
 
     std::string sarg;
-    while ((c = getopt( argc, argv, "w:hsfm") ) != -1) {
+    while ((c = getopt( argc, argv, "w:hsrfm") ) != -1) {
         switch(c) {
             case 'f': // legacy
                 break;
             case 's':
                 args.sa = true; break;
+            case 'r':
+                args.rssa = true; break;
             case 'w':
                 args.w = atoi(optarg); break;
             case 'h':
@@ -63,21 +66,42 @@ template<typename IntType,
          template<typename, typename...> typename R,
          template<typename, typename...> typename W
          >
-void run_pfbwt(PrefixFreeBWTArgs args) {
+void run_pfbwt(const PrefixFreeBWTArgs args) {
     FILE* bwt_fp = open_aux_file(args.prefix.data(),"bwt","wb");
-    pfbwtf::PrefixFreeBWT<IntType, R, W> p(args.prefix, args.w, args.sa);
-    auto bwt_fn = [bwt_fp, args](char c) {
+    pfbwtf::PrefixFreeBWT<IntType, R, W> p(args.prefix, args.w, args.sa, args.rssa);
+    auto bwt_fn = [bwt_fp, args](const char c) {
         fputc(c, bwt_fp);
     };
     if (args.sa) {
-        FILE* sa_fp = args.sa ? open_aux_file(args.prefix.data(), EXTSA, "wb") : NULL;
-        auto sa_fn = [&](const IntType s) {
-            fwrite(&s, sizeof(IntType), 1, sa_fp);
+        FILE* sa_fp = open_aux_file(args.prefix.data(), EXTSA, "wb");
+        auto sa_fn = [&](const pfbwtf::sa_fn_arg<IntType> a) {
+            fwrite(&a.sa, sizeof(IntType), 1, sa_fp);
         };
         p.generate_bwt_lcp(bwt_fn, sa_fn);
         fclose(sa_fp);
-    } else {
-        p.generate_bwt_lcp(bwt_fn, [](const IntType s){(void) s;});
+    } else if (args.rssa) {
+        FILE* s_fp = open_aux_file(args.prefix.data(), "ssa", "wb");
+        FILE* e_fp = open_aux_file(args.prefix.data(), "esa", "wb");
+        auto sa_fn = [&](const pfbwtf::sa_fn_arg<IntType> a) {
+            switch(a.run_t) {
+                case pfbwtf::RunType::START:
+                    fwrite(&a.pos, sizeof(IntType), 1, s_fp);
+                    fwrite(&a.sa, sizeof(IntType), 1, s_fp);
+                    break;
+                case pfbwtf::RunType::END:
+                    fwrite(&a.pos, sizeof(IntType), 1, e_fp);
+                    fwrite(&a.sa, sizeof(IntType), 1, e_fp);
+                    break;
+                default:
+                    die("error: invalid RunType");
+            }
+        };
+        p.generate_bwt_lcp(bwt_fn, sa_fn);
+        fclose(s_fp);
+        fclose(e_fp);
+    }
+    else { // default case: just output bwt
+        p.generate_bwt_lcp(bwt_fn, [](const pfbwtf::sa_fn_arg<IntType> a){(void) a;});
     }
     fclose(bwt_fp);
 }

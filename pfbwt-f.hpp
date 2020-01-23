@@ -29,6 +29,20 @@ bool SuffixT::operator<(SuffixT& r) {
     return this->bwtp < r.bwtp;
 }
 
+enum class RunType {OTHER, START, END};
+enum class Difficulty {EASY1, EASY2, HARD};
+
+template<typename IntType>
+struct sa_fn_arg {
+    sa_fn_arg(IntType p, IntType s, RunType r = RunType::OTHER, Difficulty d = Difficulty::EASY1) :
+        pos(p), sa(s), run_t(r), dif(d) {}
+    IntType pos;
+    IntType sa;
+    RunType run_t;
+    Difficulty dif;
+};
+
+
 template<typename IntType,
          template <typename, typename...> typename ReadConType,
          template <typename, typename...> typename WriteConType
@@ -37,33 +51,49 @@ class PrefixFreeBWT {
 
     public:
 
-    PrefixFreeBWT(std::string prefix, size_t win_size, bool sa = false) :
+    PrefixFreeBWT(std::string prefix, size_t win_size, bool sa = false, bool ssa = false) :
         fname(prefix),
         w ( win_size),
         dict ( WriteConType<uint8_t>(prefix + "." + EXTDICT)),
         bwlast ( ReadConType<uint8_t>(prefix + "." + EXTBWLST)),
         ilist ( ReadConType<IntType>(prefix + "." + EXTILIST)),
-        build_sa(sa)
+        build_sa(sa), build_rssa(ssa),
+        any_sa(sa | ssa)
     {
         dsize = dict.size();
         load_ilist_idx(prefix);
-        if (sa) bwsai = ReadConType<IntType>(prefix + "." + EXTBWSAI);
+        if (sa || ssa) bwsai = ReadConType<IntType>(prefix + "." + EXTBWSAI);
     }
 
 #define get_word_suflen(i, d, s) \
     d = dict_idx.rank(i); \
     s = d>=dwords ? dsize-i : dict_idx.select(d+1) - i;
 
+#define UPDATE_SA(bwtc, bwtp, d) \
+    sa = bwtp - suff_len; \
+    if (build_sa) { \
+        sa_fn(sa_fn_arg<IntType>(pos, sa)); \
+    } else if (build_rssa && bwtc != pbwtc) { \
+        sa_fn(sa_fn_arg<IntType>(pos,   sa,  RunType::START, d)); \
+        sa_fn(sa_fn_arg<IntType>(pos-1, psa, RunType::END,   d)); \
+    } \
+    psa = sa;
+
+#define UPDATE_BWT(bwtc) \
+    bwt_fn(bwtc); \
+    pbwtc = bwtc;
+
      /* uses LCP of dict to build BWT (less memory, more time)
      */
     template<typename BFn, typename SFn>
     void generate_bwt_lcp(BFn bwt_fn, SFn sa_fn) {
-        FILE* sa_fp = fopen((fname + ".sa").data(), "wb");
         sort_dict_suffixes(true); // build gSA and gLCP of dict
         // start from SA item that's not EndOfWord or EndOfDict
         size_t next, suff_len, wordi;
         uint8_t bwtc, pbwtc = 0;
         size_t easy_cases = 0, hard_cases = 0;
+        size_t pos = 0;
+        uint_t sa, psa = 1;
         for (size_t i = dwords+w+1; i<dsize; i=next) {
             next = i+1;
             get_word_suflen(gsa[i], wordi, suff_len);
@@ -73,15 +103,24 @@ class PrefixFreeBWT {
                 auto word_ilist = get_word_ilist(wordi);
                 for (auto j: word_ilist) {
                     bwtc = bwlast[j];
-                    // TODO: do SA/DA/etc stuff here,
-                    if (build_sa && wordi > 0) {
-                        auto sa = bwsai[j] - suff_len;
-                        sa_fn(sa);
+                    if (any_sa) {
+                        if (wordi > 0) {
+                            UPDATE_SA(bwtc, bwsai[j], Difficulty::EASY1);
+                        } else if (build_rssa) { // wordi == 0
+                            sa = bwsai[0] - this->w;
+                            sa_fn(sa_fn_arg<IntType>(pos, sa, RunType::START, Difficulty::EASY1));
+                            psa = sa; // save current sa 
+                        }
+                        /*
+                        if (update_da) {
+                            UPDATE_DA(sa);
+                        }
+                        */
                     }
-                    bwt_fn(bwtc);
-                    pbwtc = bwtc; // for sampled SA
+                    UPDATE_BWT(bwtc);
+                    ++pos;
+                    ++easy_cases;
                 }
-                ++easy_cases;
             } else { // hard case!
                 // look at all the sufs that share LCP[suf]==this_suffixlen
                 size_t nwordi, nsuff_len;
@@ -101,19 +140,23 @@ class PrefixFreeBWT {
                     same_char = same_char ? (c == pc) : 0;
                     pc = c;
                 } // everything seemingly good up till here.
-                if ((!build_sa && same_char) || (build_sa && (words.size() == 1)) ) {
+                if ((!any_sa && same_char) || (any_sa && (words.size() == 1)) ) {
                     // print c to bwt after getting all the lengths
                     for (auto word: words)  {
                         for (auto k: get_word_ilist(word)) {
-                            if (build_sa) {
-                                // get SA
-                                auto sa = bwsai[k] - suff_len;
-                                sa_fn(sa);
+                            if (any_sa) {
+                                UPDATE_SA(chars[0], bwsai[k], Difficulty::EASY2);
                             }
-                            bwt_fn(chars[0]);
+                            /*
+                            if (update_da) {
+                                UPDATE_DA(sa);
+                            }
+                            */
+                            UPDATE_BWT(chars[0]);
+                            ++pos;
+                            ++easy_cases;
                         }
                     }
-                    ++easy_cases;
                 } else {
                     // TODO: maybe a heap will be better? Like in the original
                     // or it's probably faster to sort ahead of time? IDK, must test
@@ -127,20 +170,25 @@ class PrefixFreeBWT {
                     }
                     std::sort(suffs.begin(), suffs.end());
                     for (auto s: suffs) {
-                        if (build_sa) {
-                            auto sa = bwsai[s.bwtp] - suff_len;
-                            sa_fn(sa);
+                        if (any_sa) {
+                            UPDATE_SA(s.bwtc, bwsai[s.bwtp], Difficulty::HARD);
                         }
-                        bwt_fn(s.bwtc);
+                        /*
+                        if (update_da) {
+                            UPDATE_DA(sa);
+                        }
+                        */
+                        UPDATE_BWT(s.bwtc);
+                        ++pos;
+                        ++hard_cases;
                     }
-                    ++hard_cases;
                 }
                 chars.clear();
                 words.clear();
                 next = j;
             }
         }
-        fclose(sa_fp);
+        sa_fn(sa_fn_arg<IntType>(pos-1, psa, RunType::END, Difficulty::EASY1));
         return;
     }
 
@@ -220,6 +268,8 @@ class PrefixFreeBWT {
     bv_rs<> ilist_idx; // bitvec w/ 1 on ends of dict word occs in ilist
     bv_rs<> dict_idx; // bitvec w/ 1 on word end positions in dict
     bool build_sa = false;
+    bool build_rssa = false;
+    bool any_sa = false;
 };
 }; // namespace end
 #endif
