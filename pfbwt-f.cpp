@@ -62,35 +62,35 @@ PrefixFreeBWTArgs parse_args(int argc, char** argv) {
     return args;
 }
 
-template<typename IntType,
-         template<typename, typename...> typename R,
+template<template<typename, typename...> typename R,
          template<typename, typename...> typename W
          >
 void run_pfbwt(const PrefixFreeBWTArgs args) {
     FILE* bwt_fp = open_aux_file(args.prefix.data(),"bwt","wb");
-    pfbwtf::PrefixFreeBWT<IntType, R, W> p(args.prefix, args.w, args.sa, args.rssa);
+    using pfbwt_t = pfbwtf::PrefixFreeBWT<R,W>;
+    pfbwt_t p(args.prefix, args.w, args.sa, args.rssa);
     auto bwt_fn = [bwt_fp, args](const char c) {
         fputc(c, bwt_fp);
     };
     if (args.sa) {
         FILE* sa_fp = open_aux_file(args.prefix.data(), EXTSA, "wb");
-        auto sa_fn = [&](const pfbwtf::sa_fn_arg<IntType> a) {
-            fwrite(&a.sa, sizeof(IntType), 1, sa_fp);
+        auto sa_fn = [&](const pfbwtf::sa_fn_arg a) {
+            fwrite(&a.sa, sizeof(a.sa), 1, sa_fp);
         };
         p.generate_bwt_lcp(bwt_fn, sa_fn);
         fclose(sa_fp);
     } else if (args.rssa) {
         FILE* s_fp = open_aux_file(args.prefix.data(), "ssa", "wb");
         FILE* e_fp = open_aux_file(args.prefix.data(), "esa", "wb");
-        auto sa_fn = [&](const pfbwtf::sa_fn_arg<IntType> a) {
+        auto sa_fn = [&](const pfbwtf::sa_fn_arg a) {
             switch(a.run_t) {
                 case pfbwtf::RunType::START:
-                    fwrite(&a.pos, sizeof(IntType), 1, s_fp);
-                    fwrite(&a.sa, sizeof(IntType), 1, s_fp);
+                    fwrite(&a.pos, sizeof(a.pos), 1, s_fp);
+                    fwrite(&a.sa, sizeof(a.sa), 1, s_fp);
                     break;
                 case pfbwtf::RunType::END:
-                    fwrite(&a.pos, sizeof(IntType), 1, e_fp);
-                    fwrite(&a.sa, sizeof(IntType), 1, e_fp);
+                    fwrite(&a.pos, sizeof(a.pos), 1, e_fp);
+                    fwrite(&a.sa, sizeof(a.sa), 1, e_fp);
                     break;
                 default:
                     die("error: invalid RunType");
@@ -101,7 +101,7 @@ void run_pfbwt(const PrefixFreeBWTArgs args) {
         fclose(e_fp);
     }
     else { // default case: just output bwt
-        p.generate_bwt_lcp(bwt_fn, [](const pfbwtf::sa_fn_arg<IntType> a){(void) a;});
+        p.generate_bwt_lcp(bwt_fn, [](const pfbwtf::sa_fn_arg a){(void) a;});
     }
     fclose(bwt_fp);
 }
@@ -110,9 +110,9 @@ int main(int argc, char** argv) {
     PrefixFreeBWTArgs args(parse_args(argc, argv));
     if (args.mmap) {
         fprintf(stderr, "workspace will be contained on disk (mmap)\n");
-        run_pfbwt<uint32_t, MMapFileSource, MMapFileSink>(args);
+        run_pfbwt<MMapFileSource, MMapFileSink>(args);
     } else {
         fprintf(stderr, "workspace will be contained in memory\n");
-        run_pfbwt<uint32_t, VecFileSource, VecFileSinkPrivate>(args);
+        run_pfbwt<VecFileSource, VecFileSinkPrivate>(args);
     }
 }

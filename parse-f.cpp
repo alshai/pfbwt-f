@@ -102,7 +102,8 @@ void vec_to_file(const std::vector<T>& vec, size_t nelems, std::string fname) {
 int main(int argc, char** argv) {
     pfbwtf::ParseArgs args(parse_args(argc, argv));
     // build the dictionary and populate .last, .sai and .parse_old
-    pfbwtf::Parser<uint32_t, WangHash> p(args.w, args.p);
+    using parse_t = pfbwtf::Parser<WangHash>;
+    parse_t p(args.w, args.p);
     fprintf(stderr, "starting...\n");
     {
         Timer t("TASK\tParsing\t");
@@ -112,7 +113,7 @@ int main(int argc, char** argv) {
         Timer t("TASK\tsorting dict, calculating occs, dumping to file\t");
         FILE* dict_fp = open_aux_file(args.in_fname.data(), EXTDICT, "wb");
         FILE* occ_fp  = open_aux_file(args.in_fname.data(), EXTOCC, "wb");
-        p.update_dict([&](const char* phrase, uint32_t freq) {
+        p.update_dict([&](const char* phrase, parse_t::UIntType freq) {
                 if (fwrite(phrase, 1, strlen(phrase), dict_fp) != strlen(phrase))
                 die("Error writing to DICT file\n");
                 if (fputc(EndOfWord, dict_fp) == EOF)
@@ -130,10 +131,10 @@ int main(int argc, char** argv) {
     {
         Timer t("TASK\tranking and bwt-ing parse and processing last-chars\t");
         p.bwt_of_parse(
-                [&](std::vector<char> bwlast, std::vector<uint32_t> ilist, std::vector<uint32_t> bwsai) {
+                [&](const std::vector<char>& bwlast, const std::vector<parse_t::UIntType>& ilist, const std::vector<parse_t::UIntType>& bwsai) {
                     vec_to_file<char>(bwlast, args.in_fname + "." + EXTBWLST);
-                    vec_to_file<uint32_t>(ilist, args.in_fname + "." + EXTILIST);
-                    if (args.sai) vec_to_file<uint32_t>(bwsai, args.in_fname + "." + EXTBWSAI);
+                    vec_to_file<parse_t::UIntType>(ilist, args.in_fname + "." + EXTILIST);
+                    if (args.sai) vec_to_file<parse_t::UIntType>(bwsai, args.in_fname + "." + EXTBWSAI);
                 }, 
                 args.sai);
     }

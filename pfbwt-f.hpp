@@ -32,37 +32,38 @@ bool SuffixT::operator<(SuffixT& r) {
 enum class RunType {OTHER, START, END};
 enum class Difficulty {EASY1, EASY2, HARD};
 
-template<typename IntType>
 struct sa_fn_arg {
-    sa_fn_arg(IntType p, IntType s, RunType r = RunType::OTHER, Difficulty d = Difficulty::EASY1) :
+    sa_fn_arg(uint_t p, uint_t s, RunType r = RunType::OTHER, Difficulty d = Difficulty::EASY1) :
         pos(p), sa(s), run_t(r), dif(d) {}
-    IntType pos;
-    IntType sa;
+    uint_t pos;
+    uint_t sa;
     RunType run_t;
     Difficulty dif;
 };
 
 
-template<typename IntType,
-         template <typename, typename...> typename ReadConType,
+template<template <typename, typename...> typename ReadConType,
          template <typename, typename...> typename WriteConType
          >
 class PrefixFreeBWT {
 
     public:
 
+    using UIntType = uint_t;
+    using IntType = int_t;
+
     PrefixFreeBWT(std::string prefix, size_t win_size, bool sa = false, bool ssa = false) :
         fname(prefix),
         w ( win_size),
         dict ( WriteConType<uint8_t>(prefix + "." + EXTDICT)),
         bwlast ( ReadConType<uint8_t>(prefix + "." + EXTBWLST)),
-        ilist ( ReadConType<IntType>(prefix + "." + EXTILIST)),
+        ilist ( ReadConType<UIntType>(prefix + "." + EXTILIST)),
         build_sa(sa), build_rssa(ssa),
         any_sa(sa | ssa)
     {
         dsize = dict.size();
         load_ilist_idx(prefix);
-        if (sa || ssa) bwsai = ReadConType<IntType>(prefix + "." + EXTBWSAI);
+        if (sa || ssa) bwsai = ReadConType<UIntType>(prefix + "." + EXTBWSAI);
     }
 
 #define get_word_suflen(i, d, s) \
@@ -72,10 +73,10 @@ class PrefixFreeBWT {
 #define UPDATE_SA(bwtc, bwtp, d) \
     sa = bwtp - suff_len; \
     if (build_sa) { \
-        sa_fn(sa_fn_arg<IntType>(pos, sa)); \
+        sa_fn(sa_fn_arg(pos, sa)); \
     } else if (build_rssa && bwtc != pbwtc) { \
-        sa_fn(sa_fn_arg<IntType>(pos,   sa,  RunType::START, d)); \
-        sa_fn(sa_fn_arg<IntType>(pos-1, psa, RunType::END,   d)); \
+        sa_fn(sa_fn_arg(pos,   sa,  RunType::START, d)); \
+        sa_fn(sa_fn_arg(pos-1, psa, RunType::END,   d)); \
     } \
     psa = sa;
 
@@ -93,7 +94,7 @@ class PrefixFreeBWT {
         uint8_t bwtc, pbwtc = 0;
         size_t easy_cases = 0, hard_cases = 0;
         size_t pos = 0;
-        uint_t sa, psa = 1;
+        UIntType sa, psa = 1;
         for (size_t i = dwords+w+1; i<dsize; i=next) {
             next = i+1;
             get_word_suflen(gsa[i], wordi, suff_len);
@@ -108,7 +109,7 @@ class PrefixFreeBWT {
                             UPDATE_SA(bwtc, bwsai[j], Difficulty::EASY1);
                         } else if (build_rssa) { // wordi == 0
                             sa = bwsai[0] - this->w;
-                            sa_fn(sa_fn_arg<IntType>(pos, sa, RunType::START, Difficulty::EASY1));
+                            sa_fn(sa_fn_arg(pos, sa, RunType::START, Difficulty::EASY1));
                             psa = sa; // save current sa 
                         }
                         /*
@@ -131,7 +132,7 @@ class PrefixFreeBWT {
                 words.push_back(wordi);
                 bool same_char = true;
                 size_t j;
-                for (j = i + 1; j < dsize && glcp[j] >= (int_t) suff_len; ++j) {
+                for (j = i + 1; j < dsize && glcp[j] >= (IntType) suff_len; ++j) {
                     get_word_suflen(gsa[j], nwordi, nsuff_len);
                     if (nsuff_len != suff_len) die("something went wrong!");
                     c = gsa[j]-1 ? dict[gsa[j]-1] : 0;
@@ -189,7 +190,7 @@ class PrefixFreeBWT {
             }
         }
         if (build_rssa)
-            sa_fn(sa_fn_arg<IntType>(pos-1, psa, RunType::END, Difficulty::EASY1));
+            sa_fn(sa_fn_arg(pos-1, psa, RunType::END, Difficulty::EASY1));
         return;
     }
 
@@ -223,7 +224,7 @@ class PrefixFreeBWT {
 
 
     void load_ilist_idx(std::string fname) {
-        ReadConType<IntType> occs(fname + "." + EXTOCC);
+        ReadConType<UIntType> occs(fname + "." + EXTOCC);
         dwords = occs.size();
         int total_occs = 0;
         for (size_t i = 0; i < occs.size(); ++i)
@@ -262,10 +263,10 @@ class PrefixFreeBWT {
     uint64_t dwords; // number of words in dict
     WriteConType<uint8_t> dict; // dict word array (word ends represented by EndOfWord)
     ReadConType<uint8_t> bwlast; // parse-bwt char associated w/ ilist
-    ReadConType<IntType> ilist; // bwlast positions of dict words
-    ReadConType<IntType> bwsai; // TODO: this might need a separate IntType
-    WriteConType<uint_t> gsa; // gSA of dict words
-    WriteConType<int_t> glcp; // gLCP of dict words
+    ReadConType<UIntType> ilist; // bwlast positions of dict words
+    ReadConType<UIntType> bwsai; // TODO: this might need a separate UIntType
+    WriteConType<UIntType> gsa; // gSA of dict words
+    WriteConType<IntType> glcp; // gLCP of dict words
     bv_rs<> ilist_idx; // bitvec w/ 1 on ends of dict word occs in ilist
     bv_rs<> dict_idx; // bitvec w/ 1 on word end positions in dict
     bool build_sa = false;

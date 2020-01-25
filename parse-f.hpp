@@ -36,21 +36,22 @@ struct Freq {
 };
 
 
-template <typename IntType, typename Hasher>
+template <typename Hasher>
 struct Parser {
 
-    using FreqMap = std::map<std::string, Freq<IntType>>;
 
     public:
+
+    using UIntType = uint_t;
 
     Parser(size_t wsize, size_t pmod) {
         set_w(wsize);
         set_p(pmod);
     }
 
-    // if get_sai is true, then an IntType is stored for every phrase
+    // if get_sai is true, then an UIntType is stored for every phrase
     // encountered (ie., the phrases' position within the text). 
-    // We might consider writing the IntType to file instead in the case that
+    // We might consider writing the UIntType to file instead in the case that
     // the number of phrases is huge.
     void parse_fasta(const char* fname, const bool get_sai = false) {
         if (get_sai) {
@@ -61,12 +62,19 @@ struct Parser {
         gzFile fp = gzopen(fname, "r");
         kseq_t* seq = kseq_init(fp);
         int l;
+        size_t total_l = 0;
         size_t nseqs(0);
-        IntType pos(0);
+        UIntType pos(0);
         std::string phrase;
         phrase.append(1, Dollar);
         Hasher hf(w);
         while (( l = kseq_read(seq) ) >= 0) {
+            total_l += l;
+#ifndef M64
+            if (total_l >= std::numeric_limits<int32_t>::max) {
+                die("input too long, please use 64-bit version");
+            }
+#endif
             for (size_t i = 0; i < seq->seq.l; ++i) {
                 phrase.append(1, seq->seq.s[i]);
                 hf.update(seq->seq.s[i]);
@@ -179,7 +187,7 @@ struct Parser {
         return parse;
     }
 
-    const std::vector<IntType>& get_parse_ranks() const {
+    const std::vector<int_text>& get_parse_ranks() const {
         if (!parse_ranks.size()) {
             die("parse ranks have not been generated!");
         }
@@ -191,8 +199,8 @@ struct Parser {
     void bwt_of_parse(OutFn out_fn, bool get_sai=false) {
         // these will get passed to out_fn at end
         std::vector<char> bwlast;
-        std::vector<IntType> ilist;
-        std::vector<IntType> bwsai;
+        std::vector<UIntType> ilist;
+        std::vector<UIntType> bwsai;
 
         size_t n; // size of parse_ranks, minus the last EOS character
         // TODO: support large parse sizes 
@@ -217,8 +225,8 @@ struct Parser {
         }
         // compute S.A.
         // we assign instead of reserve in order to be able to use .size()
-        assert(sizeof(IntType) >= sizeof(uint_t));
-        std::vector<IntType> SA(n+1, 0);
+        assert(sizeof(UIntType) >= sizeof(uint_t));
+        std::vector<UIntType> SA(n+1, 0);
         // fprintf(stderr, "Computing S.A. of size %ld over an alphabet of size %ld\n",n+1,k+1);
         int depth = sacak_int(parse_ranks.data(), SA.data(), n+1, k+1);
         if (depth < 0) die("Error computing SA");
@@ -248,7 +256,7 @@ struct Parser {
                 SA[i] = parse_ranks[SA[i] - 1];
             }
         }
-        std::vector<IntType> F(occs.size()+1, 0);
+        std::vector<UIntType> F(occs.size()+1, 0);
         F[1] = 1;
         for (size_t i = 2; i < occs.size() + 1; ++i) {
             F[i] = F[i-1] + occs[i-2];
@@ -269,8 +277,10 @@ struct Parser {
 
     private:
 
+    using FreqMap = std::map<std::string, Freq<UIntType>>;
+
     void inline process_phrase(const std::string& phrase) {
-        auto ret = freqs.insert({phrase, Freq<IntType>(1)});
+        auto ret = freqs.insert({phrase, Freq<UIntType>(1)});
         if (!ret.second) ret.first->second.n += 1;
         parse.push_back(ret.first->first.data());
         last.push_back(phrase[phrase.size()-w-1]);
@@ -278,10 +288,10 @@ struct Parser {
 
     FreqMap freqs;
     std::vector<const char*> parse;
-    std::vector<IntType> occs;
-    std::vector<IntType> parse_ranks;
+    std::vector<UIntType> occs;
+    std::vector<int_text> parse_ranks;
     std::vector<char> last;
-    std::vector<IntType> sai;
+    std::vector<UIntType> sai;
     size_t w, p;
     size_t parse_size;
 };
