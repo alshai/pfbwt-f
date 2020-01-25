@@ -188,7 +188,8 @@ class PrefixFreeBWT {
                 next = j;
             }
         }
-        sa_fn(sa_fn_arg<IntType>(pos-1, psa, RunType::END, Difficulty::EASY1));
+        if (build_rssa)
+            sa_fn(sa_fn_arg<IntType>(pos-1, psa, RunType::END, Difficulty::EASY1));
         return;
     }
 
