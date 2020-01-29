@@ -5,7 +5,7 @@ CC=gcc
 CXX=g++
 
 # main executables 
-EXECS=pfbwt-f parse-f pfbwt-f64 parse-f64
+EXECS=pfbwt-f pfbwt-f64
 
 # targets not producing a file declared phony
 .PHONY: all clean tarfile
@@ -18,20 +18,14 @@ gsa/gsacak.o: gsa/gsacak.c gsa/gsacak.h
 gsa/gsacak64.o: gsa/gsacak.c gsa/gsacak.h
 	$(CC) $(CFLAGS) -c -o $@ $< -DM64
 
-parse-f: parse-f.cpp utils.o gsa/gsacak.o parse-f.hpp
-	$(CXX) $(CXX_FLAGS) -I./sdsl-lite/include -o $@ parse-f.cpp utils.o gsa/gsacak.o -lz
-
 pfbwt-f: pfbwt-f.cpp utils.o gsa/gsacak.o pfbwt-f.hpp file_wrappers.hpp
 	$(CXX) $(CXX_FLAGS) -I./ -I./sdsl-lite/include -o $@ pfbwt-f.cpp utils.o gsa/gsacak.o -lz
 
-simplebwt: simplebwt.o gsa/gsacak.o
-	$(CC) $(CFLAGS) -o $@ $< gsa/gsacak.o
-
-parse-f64: parse-f.cpp utils.o gsa/gsacak64.o parse-f.hpp
-	$(CXX) $(CXX_FLAGS) -DM64 -I./sdsl-lite/include -o $@ parse-f.cpp utils.o gsa/gsacak64.o -lz
-
 pfbwt-f64: pfbwt-f.cpp utils.o gsa/gsacak64.o pfbwt-f.hpp file_wrappers.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -I./ -I./sdsl-lite/include -o $@ pfbwt-f.cpp utils.o gsa/gsacak64.o -lz
+
+simplebwt: simplebwt.o gsa/gsacak.o
+	$(CC) $(CFLAGS) -o $@ $< gsa/gsacak.o
 
 simplebwt64: simplebwt.o gsa/gsacak64.o
 	$(CC) $(CFLAGS) -DM64 -o $@ $< gsa/gsacak64.o

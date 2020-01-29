@@ -40,34 +40,22 @@ make
 
 ## Usage
 
-1) Parse the input
-
 ```
-./parse-f -w <window size> -p <hash mod value> <x.fa>
-```
-
-NOTE: The input file should not contain the characters 0x00, 0x01, and 0x02,
-each of which are used by the internal algorithms.
-
-
-2) build the BWT. Make sure the window size is the same one as used in `parse-f`.
-
-```
-./pfbwt-f -w <window size> <x.fa>
+./pfbwt-f -p <mod value> -w <window size> <x.fa>
 ```
 
 The final BWT will be located in `x.fa.bwt`. This file will contain one extra
 character from the input (0x00) - this represents the end-of-string symbol of
 the text.
 
+Please use `pfbwt-f64` if your data exceeds 2^32 characters, otherwise results will be incorrect.
 
 ## Some features
 
 Output the full Suffix Array to `<x.fa>.sa`:
 
 ```
-./parse-f -w <window size> -s -p <hash mod value> <x.fa>
-./pfbwt-f -w <window size> -s <x.fa>
+./pfbwt-f -s <x.fa>
 ```
 
 The output is formatted as consecutive 32-bit integers, no delimiters (64-bit support coming soon!).
@@ -75,8 +63,34 @@ The output is formatted as consecutive 32-bit integers, no delimiters (64-bit su
 Output the run-length Suffix Array to `<x.fa>.ssa` (run-starts) and `<x.fa>.esa` (run-ends):
 
 ```
-./parse-f -w <window size> -s -p <hash mod value> <x.fa>
-./pfbwt-f -w <window size> -r <x.fa>
+./pfbwt-f -r <x.fa>
 ```
 
-The output is formatted as consecutive pairs of 32-bit integers (position in BWT, SA sample), no delimiters (64-bit support coming soon!).
+The output is formatted as consecutive **pairs** of 32-bit integers (position in BWT, SA sample), no delimiters (64-bit support coming soon!).
+
+## Options
+
+```
+pfbwt-f. use the prefix-free parsing algorithm to build a BWT for genomic data.
+
+usage
+    ./pfbwt-f [options] <fasta file>
+
+    results
+        BWT of input saved to <fasta file>.bwt. Header lines are excluded.
+
+    options
+        -s              Build full suffix array and output to <fasta file>.sa
+
+        -r              Build run-length sampled suffix arrray and output run-starts to <fasta file>.ssa and run-ends to <fasta file>.esa
+
+        -w <int>        window-size for parsing [default: 10]
+
+        -p <int>        modulo for parsing [default: 100]
+
+        -m              build BWT on external memory
+
+        --parse-only    only produce parse (dict, occ, ilist, last, bwlast files), do not build BWT
+
+        -h              print this help message
+```
