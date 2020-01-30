@@ -60,6 +60,8 @@ struct Parser {
             sai.reserve(get_file_size(fname)+1);
         }
         gzFile fp = gzopen(fname, "r");
+        if (fp == NULL)
+            die("failed to open file!\n");
         kseq_t* seq = kseq_init(fp);
         int l;
         size_t total_l = 0;

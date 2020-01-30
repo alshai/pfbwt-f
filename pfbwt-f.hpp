@@ -61,6 +61,7 @@ class PrefixFreeBWT {
         build_sa(sa), build_rssa(ssa),
         any_sa(sa | ssa)
     {
+        if (sa && ssa) die("cannot activate both SA and sampled-SA options!")
         dsize = dict.size();
         load_ilist_idx(prefix);
         if (sa || ssa) bwsai = ReadConType<UIntType>(prefix + "." + EXTBWSAI);
