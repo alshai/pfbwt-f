@@ -78,8 +78,9 @@ struct Parser {
             }
 #endif
             for (size_t i = 0; i < seq->seq.l; ++i) {
-                phrase.append(1, seq->seq.s[i]);
-                hf.update(seq->seq.s[i]);
+                char c = std::toupper(seq->seq.s[i]);
+                phrase.append(1, c);
+                hf.update(c);
                 if (hf.hashvalue() % p == 0) {
                     process_phrase(phrase);
                     if (get_sai) {
