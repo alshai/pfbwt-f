@@ -10,23 +10,34 @@ if __name__ == "__main__":
     parser.add_argument("--big", action='store_true', help="use 64-bit")
     parser.add_argument("--sa", action='store_true', help="test full SA output")
     parser.add_argument("--rssa", action='store_true', help="test full RLSA output")
+    parser.add_argument("--mmap", action='store_true', help="use mmap to handle data")
     args = parser.parse_args()
 
     if args.sa and args.rssa:
         print("cannot activate both -sa and -rssa at the same time!")
         exit(1)
 
-    pfbwt = "./pfbwt-f"
-    fasta_loc = os.path.join("./tests/test/", args.fasta)
     options = []
     if args.sa:
         options.append("-s")
     elif args.rssa:
         options.append("-r")
-    if args.big:
+    if args.mmap:
         options.append("-m")
 
-    pfbwt_cmd = [pfbwt, fasta_loc]
+    if args.big:
+        pfbwt = "./pfbwt-f64"
+        f = args.fasta.split(".")
+        if len(f) > 1:
+            fasta_loc = os.path.join("./tests/test/", ".".join(f[:-1])+"64."+f[-1])
+        else:
+            fasta_loc = os.path.join("./tests/test/", args.fasta + "64")
+    else:
+        pfbwt = "./pfbwt-f"
+        fasta_loc = os.path.join("./tests/test/", args.fasta)
+
+    pfbwt_cmd = [pfbwt] + options + [fasta_loc]
+    print(pfbwt_cmd)
 
     # run the program and return error if it fails
     try:
