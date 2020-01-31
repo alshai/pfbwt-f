@@ -208,7 +208,7 @@ void run_pfbwt(const Args args) {
             fwrite(&a.sa, sizeof(a.sa), 1, sa_fp);
         };
         {
-            Timer t("generating final BWT w/ full SA\n");
+            Timer t("TASK\tgenerating final BWT w/ full SA\t");
             p.generate_bwt_lcp(bwt_fn, sa_fn);
         }
         fclose(sa_fp);
@@ -230,7 +230,7 @@ void run_pfbwt(const Args args) {
             }
         };
         {
-            Timer t("generating final BWT w/ run-length sampled SA\n");
+            Timer t("TASK\tgenerating final BWT w/ run-length sampled SA\t");
             p.generate_bwt_lcp(bwt_fn, sa_fn);
         }
         fclose(s_fp);
@@ -238,7 +238,7 @@ void run_pfbwt(const Args args) {
     }
     else { // default case: just output bwt
         {
-            Timer t("generating final BWT w/o SA\n");
+            Timer t("TASK\tgenerating final BWT w/o SA\t");
             p.generate_bwt_lcp(bwt_fn, [](const pfbwtf::sa_fn_arg a){(void) a;});
         }
     }
