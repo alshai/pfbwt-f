@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <stdint.h>
-#include "utils.h" 
+#include "utils.h"
 
 
 // write error message and exit
@@ -14,7 +14,7 @@ void die(const char *s)
 {
   perror(s);
   exit(1);
-}    
+}
 
 int fd_open_aux_file(const char *base, const char *ext, int flags)
 {
@@ -22,7 +22,7 @@ int fd_open_aux_file(const char *base, const char *ext, int flags)
   int e = asprintf(&name,"%s.%s",base,ext);
   if(e<1) die("asprint error");
   int fd = open(name,flags,00666);
-  if(fd<0) die(__func__);  
+  if(fd<0) die(__func__);
   free(name);
   return fd;
 }
@@ -35,7 +35,7 @@ FILE *open_aux_file(const char *base, const char *ext, const char *mode)
   int e = asprintf(&name,"%s.%s",base,ext);
   if(e<1) die("asprint error");
   FILE *f = fopen(name,mode);
-  if(f==NULL) die(name);  
+  if(f==NULL) die(name);
   free(name);
   return f;
 }
@@ -47,14 +47,14 @@ FILE *open_aux_file_num(const char *base, const char *ext, const int num, const 
   int e = asprintf(&name,"%s.%d.%s",base,num,ext);
   if(e<1) die("asprint error");
   FILE *f = fopen(name,mode);
-  if(f==NULL) die(name);  
+  if(f==NULL) die(name);
   free(name);
   return f;
 }
 
-// ------ functions handling file consisting of multiple segments 
+// ------ functions handling file consisting of multiple segments
 
-// open multiple file for reading. If nsegs==0 then it is a single fle  
+// open multiple file for reading. If nsegs==0 then it is a single fle
 mFile *mopen_aux_file(const char *base, const char *ext, int nsegs)
 {
   mFile *f = malloc(sizeof(mFile));
@@ -65,13 +65,13 @@ mFile *mopen_aux_file(const char *base, const char *ext, int nsegs)
   f->cur = 0;
   if(nsegs==0)
     f->f = open_aux_file(f->base, f->ext,"rb");
-  else  
+  else
     f->f = open_aux_file_num(f->base, f->ext, f->cur,"rb");
   if(f->f==NULL) die("Error opening multiple file");
   return f;
 }
 
-// close a multiple file 
+// close a multiple file
 int mfclose(mFile *f) {
   FILE *aux = f->f;
   free(f->ext);
@@ -99,7 +99,7 @@ size_t mfread(void *vptr, size_t size, size_t nmemb, mFile *f)
     else {
       read += s;
       nmemb -=s;
-      if(nmemb==0) break; 
+      if(nmemb==0) break;
     }
   }
   return read;
@@ -116,7 +116,7 @@ uint64_t get_myint(uint8_t *a, long n, long i)
   assert(a!=NULL);
   long offset = (i+1)*IBYTES-1;
   uint64_t ai = 0;
-  for(long j=0;j<IBYTES;j++) 
+  for(long j=0;j<IBYTES;j++)
     ai = (ai << 8) | a[offset-j];
   return ai;
 }
@@ -158,6 +158,25 @@ uint8_t seq_nt4_ntoa_table[] = {
     /* 208 */ 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
     /* 224 */ 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
     /* 240 */ 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+};
+
+uint8_t seq_nt4_table[] = {
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  3, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  3, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4
 };
 
 size_t get_file_size(const char* path) {

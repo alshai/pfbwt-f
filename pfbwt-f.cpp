@@ -17,10 +17,11 @@ struct Args {
     std::string in_fname;
     size_t w = 10;
     size_t p = 100;
-    bool sa = false;
-    bool rssa = false;
-    bool mmap = false;
+    int sa = false;
+    int rssa = false;
+    int mmap = false;
     int parse_only = 0;
+    int trim_non_acgt = 0;
 };
 
 struct Timer {
@@ -91,10 +92,16 @@ Args parse_args(int argc, char** argv) {
     std::string sarg;
 
     static struct option lopts[] = {
-        {"parse-only", no_argument, &args.parse_only, 1}
+        {"parse-only", no_argument, &args.parse_only, 1},
+        {"trim-non-acgt", no_argument, &args.trim_non_acgt, 1},
+        {"sa", no_argument, NULL, 's'},
+        {"rssa", no_argument, NULL, 'r'},
+        {"mmap", no_argument, NULL, 'm'},
+        {"window-size", required_argument, NULL, 'w'},
+        {"mod-val", required_argument, NULL, 'p'}
     };
 
-    while ((c = getopt_long( argc, argv, "w:hsrfm", lopts, NULL) ) != -1) {
+    while ((c = getopt_long( argc, argv, "w:p:hsrfm", lopts, NULL) ) != -1) {
         switch(c) {
             case 'f': // legacy
                 break;
@@ -153,7 +160,7 @@ int run_parser(Args args) {
     fprintf(stderr, "starting...\n");
     {
         Timer t("TASK\tParsing\t");
-        p.parse_fasta(args.in_fname.data(), (args.sa || args.rssa));
+        p.parse_fasta(args.in_fname.data(), (args.sa || args.rssa), args.trim_non_acgt);
     }
     {
         Timer t("TASK\tsorting dict, calculating occs, dumping to file\t");
@@ -189,6 +196,8 @@ int run_parser(Args args) {
         const auto& parse_ranks = p.get_parse_ranks();
         vec_to_file(parse_ranks, p.get_parse_size(), args.in_fname + "." + EXTPARSE);
     }
+    // TODO: dump document starts to file if applicable
+    // TODO: dump ntab to file if applicable.
     return 0;
 }
 

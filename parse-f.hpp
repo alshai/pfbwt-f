@@ -18,7 +18,6 @@ KSEQ_INIT(gzFile, gzread);
 #include "gsa/gsacak.h"
 }
 
-
 namespace pfbwtf {
 
 struct ParseArgs {
@@ -35,6 +34,13 @@ struct Freq {
     T r = 0;
 };
 
+struct ntab_entry {
+    size_t pos = 0;
+    size_t l = 0;
+    void clear() {
+        pos = 0; l = 0;
+    }
+};
 
 template <typename Hasher>
 struct Parser {
@@ -50,10 +56,10 @@ struct Parser {
     }
 
     // if get_sai is true, then an UIntType is stored for every phrase
-    // encountered (ie., the phrases' position within the text). 
+    // encountered (ie., the phrases' position within the text).
     // We might consider writing the UIntType to file instead in the case that
     // the number of phrases is huge.
-    void parse_fasta(const char* fname, const bool get_sai = false) {
+    void parse_fasta(const char* fname, const bool get_sai = false, const bool trim_non_acgt = false) {
         if (get_sai) {
             sai.clear();
             // TODO: this is not sufficient when the file is gzipped
@@ -64,21 +70,41 @@ struct Parser {
             die("failed to open file!\n");
         kseq_t* seq = kseq_init(fp);
         int l;
-        size_t total_l = 0;
-        size_t nseqs(0);
+        size_t ps(0), total_l(0), nseqs(0);
         UIntType pos(0);
+        char c('A'), pc('A');
+        ntab_entry ne;
         std::string phrase;
         phrase.append(1, Dollar);
         Hasher hf(w);
         while (( l = kseq_read(seq) ) >= 0) {
+            // doc_starts.push_back(total_l)
             total_l += l;
 #ifndef M64
-            if (total_l >= std::numeric_limits<int32_t>::max) {
+            if (total_l >= std::numeric_limits<uint32_t>::max) {
                 die("input too long, please use 64-bit version");
             }
 #endif
             for (size_t i = 0; i < seq->seq.l; ++i) {
-                char c = std::toupper(seq->seq.s[i]);
+                c = std::toupper(seq->seq.s[i]);
+                if (trim_non_acgt) {
+                    char x = seq_nt4_table[static_cast<size_t>(pc)];
+                    char y = seq_nt4_table[static_cast<size_t>(c)];
+                    if (y > 3) { // skip if nonACGT
+                        if (x < 4) { // new N run
+                            ne.l = 1;
+                            ne.pos = ps-1;
+                        } else {
+                            ne.l += 1;
+                        }
+                        pc = c;
+                        continue; // make sure that rest of loop is skipped
+                    }
+                    if (y < 4 && x > 3) { // record if [^ACGT] run ended
+                        ntab.push_back(ne);
+                        ne.clear();
+                    }
+                } // end trim_non_acgt stuff
                 phrase.append(1, c);
                 hf.update(c);
                 if (hf.hashvalue() % p == 0) {
@@ -86,9 +112,15 @@ struct Parser {
                     if (get_sai) {
                         pos = pos ? pos+phrase.size()-w : phrase.size()-1;
                         sai.push_back(pos);
-                    } 
+                    }
                     phrase.erase(0, phrase.size()-w);
                 }
+                ++ps;
+                pc = c;
+            }
+            // record last [^ACGT] run if applicable
+            if (trim_non_acgt && seq_nt4_table[static_cast<size_t>(c)] > 3) {
+                ntab.push_back(ne);
             }
             ++nseqs;
         }
@@ -206,7 +238,7 @@ struct Parser {
         std::vector<UIntType> bwsai;
 
         size_t n; // size of parse_ranks, minus the last EOS character
-        // TODO: support large parse sizes 
+        // TODO: support large parse sizes
         if (!parse_ranks.size()) generate_parse_ranks();
         if (parse_ranks.size() > 0x7FFFFFFE) {
             fprintf(stderr, "currently no support for texts w/ > 2^31-2 phrases\n");
@@ -295,6 +327,8 @@ struct Parser {
     std::vector<int_text> parse_ranks;
     std::vector<char> last;
     std::vector<UIntType> sai;
+    // std::vector<size_t> doc_starts;
+    std::vector<ntab_entry> ntab;
     size_t w, p;
     size_t parse_size;
 };

@@ -53,6 +53,6 @@ mFile *mopen_aux_file(const char *base, const char *ext, int nsegs);
 int mfclose(mFile *f);
 size_t mfread(void *ptr, size_t size, size_t nmemb, mFile *f);
 extern uint8_t seq_nt4_ntoa_table[];
-
+extern uint8_t seq_nt4_table[];
 #endif
 
