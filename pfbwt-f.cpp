@@ -17,11 +17,12 @@ struct Args {
     std::string in_fname;
     size_t w = 10;
     size_t p = 100;
-    int sa = false;
-    int rssa = false;
-    int mmap = false;
+    int sa = 0;
+    int rssa = 0;
+    int mmap = 0;
     int parse_only = 0;
     int trim_non_acgt = 0;
+    int pfbwt_only = 0;
 };
 
 struct Timer {
@@ -93,6 +94,7 @@ Args parse_args(int argc, char** argv) {
 
     static struct option lopts[] = {
         {"parse-only", no_argument, &args.parse_only, 1},
+        {"pfbwt-only", no_argument, &args.pfbwt_only, 1},
         {"trim-non-acgt", no_argument, &args.trim_non_acgt, 1},
         {"sa", no_argument, NULL, 's'},
         {"rssa", no_argument, NULL, 'r'},
@@ -256,7 +258,8 @@ void run_pfbwt(const Args args) {
 
 int main(int argc, char** argv) {
     Args args(parse_args(argc, argv));
-    run_parser(args); // scan file and save relevant info to disk
+    if (!args.pfbwt_only)
+        run_parser(args); // scan file and save relevant info to disk
     if (args.parse_only) return 0;
     if (args.mmap) {
         fprintf(stderr, "workspace will be contained on disk (mmap)\n");
