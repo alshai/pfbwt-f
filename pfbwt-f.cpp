@@ -19,6 +19,7 @@ struct Args {
     size_t p = 100;
     int sa = 0;
     int rssa = 0;
+    int da = 0;
     int mmap = 0;
     int parse_only = 0;
     int trim_non_acgt = 0;
@@ -100,6 +101,7 @@ Args parse_args(int argc, char** argv) {
         {"verbose", no_argument, &args.verbose, 1},
         {"sa", no_argument, NULL, 's'},
         {"rssa", no_argument, NULL, 'r'},
+        {"da", no_argument, NULL, 'd'},
         {"mmap", no_argument, NULL, 'm'},
         {"window-size", required_argument, NULL, 'w'},
         {"mod-val", required_argument, NULL, 'p'}
@@ -113,6 +115,8 @@ Args parse_args(int argc, char** argv) {
                 args.sa = true; break;
             case 'r':
                 args.rssa = true; break;
+            case 'd':
+                args.da = true; break;
             case 'w':
                 args.w = atoi(optarg); break;
             case 'm':
@@ -147,6 +151,15 @@ void vec_to_file(const std::vector<T>& vec, std::string fname) {
     fclose(fp);
 }
 
+template<>
+void vec_to_file<std::string>(const std::vector<std::string>& vec, std::string fname) {
+    FILE* fp = fopen(fname.data(), "w");
+    for (auto v: vec) {
+        fprintf(fp, "%s\n", v.data());
+    }
+    fclose(fp);
+}
+
 template<typename T>
 void vec_to_file(const std::vector<T>& vec, size_t nelems, std::string fname) {
     FILE* fp = fopen(fname.data(), "wb");
@@ -164,7 +177,7 @@ int run_parser(Args args) {
     fprintf(stderr, "starting...\n");
     {
         Timer t("TASK\tParsing\t");
-        p.parse_fasta(args.in_fname.data(), (args.sa || args.rssa), args.trim_non_acgt);
+        p.parse_fasta(args.in_fname.data(), (args.sa || args.rssa), args.da, args.trim_non_acgt);
     }
     {
         Timer t("TASK\tsorting dict, calculating occs, dumping to file\t");
@@ -192,6 +205,7 @@ int run_parser(Args args) {
                     vec_to_file<char>(bwlast, args.in_fname + "." + EXTBWLST);
                     vec_to_file<parse_t::UIntType>(ilist, args.in_fname + "." + EXTILIST);
                     if (args.sa || args.rssa) vec_to_file<parse_t::UIntType>(bwsai, args.in_fname + "." + EXTBWSAI);
+                    // TODO: should we do DA stuff here too?
                 },
                 (args.sa || args.rssa));
     }
@@ -200,8 +214,16 @@ int run_parser(Args args) {
         const auto& parse_ranks = p.get_parse_ranks();
         vec_to_file(parse_ranks, p.get_parse_size(), args.in_fname + "." + EXTPARSE);
     }
-    // TODO: dump document starts to file if applicable
+    if (args.da) {
+        const auto& doc_starts = p.get_doc_starts();
+        vec_to_file(doc_starts, args.in_fname + ".dstarts");
+        const auto& doc_names = p.get_doc_names();
+        vec_to_file(doc_names, args.in_fname + ".dnames");
+    }
     // TODO: dump ntab to file if applicable.
+    if (args.trim_non_acgt) {
+        vec_to_file(p.get_ntab(), args.in_fname + ".ntab");
+    }
     return 0;
 }
 

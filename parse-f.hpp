@@ -59,18 +59,22 @@ struct Parser {
     // encountered (ie., the phrases' position within the text).
     // We might consider writing the UIntType to file instead in the case that
     // the number of phrases is huge.
-    void parse_fasta(const char* fname, const bool get_sai = false, const bool trim_non_acgt = false) {
+    void parse_fasta(const char* fname, const bool get_sai = false, const bool get_da = false, const bool trim_non_acgt = false) {
         if (get_sai) {
             sai.clear();
             // TODO: this is not sufficient when the file is gzipped
             sai.reserve(get_file_size(fname)+1);
+        }
+        if (get_da) {
+            doc_starts.clear();
+            doc_names.clear();
         }
         gzFile fp = gzopen(fname, "r");
         if (fp == NULL)
             die("failed to open file!\n");
         kseq_t* seq = kseq_init(fp);
         int l;
-        size_t total_l(0), nseqs(0);
+        uint64_t total_l(0), nseqs(0);
         UIntType pos(0);
         char c('A'), pc('A');
         ntab_entry ne;
@@ -78,10 +82,13 @@ struct Parser {
         phrase.append(1, Dollar);
         Hasher hf(w);
         while (( l = kseq_read(seq) ) >= 0) {
-            // doc_starts.push_back(total_l)
-            total_l += l;
+            if (get_da) {
+                doc_starts.push_back(pos);
+                doc_names.push_back(seq->name.s);
+            }
 #ifndef M64
-            if (total_l >= std::numeric_limits<uint32_t>::max) {
+            total_l += l;
+            if (total_l >= static_cast<uint64_t>(std::numeric_limits<uint32_t>::max)) {
                 die("input too long, please use 64-bit version");
             }
 #endif
@@ -308,6 +315,18 @@ struct Parser {
 
     size_t get_parse_size() const { return parse_size; }
 
+    const std::vector<UIntType>& get_doc_starts() const {
+        return doc_starts;
+    }
+
+    const std::vector<std::string>& get_doc_names() const {
+        return doc_names;
+    }
+
+    const std::vector<ntab_entry>&  get_ntab() const {
+        return ntab;
+    }
+
     private:
 
     using FreqMap = std::map<std::string, Freq<UIntType>>;
@@ -325,7 +344,8 @@ struct Parser {
     std::vector<int_text> parse_ranks;
     std::vector<char> last;
     std::vector<UIntType> sai;
-    // std::vector<size_t> doc_starts;
+    std::vector<UIntType> doc_starts;
+    std::vector<std::string> doc_names;
     std::vector<ntab_entry> ntab;
     size_t w, p;
     size_t parse_size;
