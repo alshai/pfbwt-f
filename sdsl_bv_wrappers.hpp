@@ -29,11 +29,11 @@ class bv_rs : public sdsl_bv_t {
         sdsl::util::init_support(select_, this);
     }
 
-    size_t rank(size_t i) {
+    size_t rank(size_t i) const {
         return rank_(i);
     }
 
-    size_t select(size_t i) {
+    size_t select(size_t i) const {
         return select_(i);
     }
 

@@ -198,9 +198,9 @@ class PrefixFreeBWT {
         return;
     }
 
-    void generate_bwt_fm() {
-        return;
-    }
+    // void generate_bwt_fm() {
+    //     return;
+    // }
 
     private:
 
@@ -242,13 +242,13 @@ class PrefixFreeBWT {
         ilist_idx.init_rs();
     }
 
-    size_t get_ilist_size(size_t wordi) {
+    size_t get_ilist_size(size_t wordi) const {
         auto startpos = wordi ? ilist_idx.select(wordi) + 1 : 0;
         auto endpos = wordi >= dwords ? ilist.size()-1 : ilist_idx.select(wordi+1);
         return endpos - startpos + 1;
     }
 
-    std::vector<size_t> get_word_ilist(size_t wordi) {
+    std::vector<size_t> get_word_ilist(size_t wordi) const {
         // get to the end of the previous word's list, then add one to get
         // to the start of the current word
         auto startpos = wordi ? ilist_idx.select(wordi) + 1 : 0;
