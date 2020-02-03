@@ -70,7 +70,7 @@ struct Parser {
             die("failed to open file!\n");
         kseq_t* seq = kseq_init(fp);
         int l;
-        size_t ps(0), total_l(0), nseqs(0);
+        size_t total_l(0), nseqs(0);
         UIntType pos(0);
         char c('A'), pc('A');
         ntab_entry ne;
@@ -93,7 +93,7 @@ struct Parser {
                     if (y > 3) { // skip if nonACGT
                         if (x < 4) { // new N run
                             ne.l = 1;
-                            ne.pos = ps-1;
+                            ne.pos = pos-1;
                         } else {
                             ne.l += 1;
                         }
@@ -110,12 +110,11 @@ struct Parser {
                 if (hf.hashvalue() % p == 0) {
                     process_phrase(phrase);
                     if (get_sai) {
-                        pos = pos ? pos+phrase.size()-w : phrase.size()-1;
-                        sai.push_back(pos);
+                        sai.push_back(pos+1);
                     }
                     phrase.erase(0, phrase.size()-w);
                 }
-                ++ps;
+                ++pos;
                 pc = c;
             }
             // record last [^ACGT] run if applicable
@@ -127,8 +126,7 @@ struct Parser {
         phrase.append(w, Dollar);
         process_phrase(phrase);
         if (get_sai) {
-            pos = pos ? pos+phrase.size()-w : phrase.size()-1;
-            sai.push_back(pos);
+            sai.push_back(pos + w);
         }
         kseq_destroy(seq);
         gzclose(fp);
