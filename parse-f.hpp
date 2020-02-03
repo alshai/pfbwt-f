@@ -50,7 +50,7 @@ struct Parser {
 
     using UIntType = uint_t;
 
-    Parser(size_t wsize, size_t pmod) {
+    Parser(size_t wsize, size_t pmod, bool verb) :  verbose(verb) {
         set_w(wsize);
         set_p(pmod);
     }
@@ -331,6 +331,7 @@ struct Parser {
     std::vector<ntab_entry> ntab;
     size_t w, p;
     size_t parse_size;
+    bool verbose = false;
 };
 }; // namespace end
 

@@ -23,6 +23,7 @@ struct Args {
     int parse_only = 0;
     int trim_non_acgt = 0;
     int pfbwt_only = 0;
+    int verbose = false;
 };
 
 struct Timer {
@@ -96,6 +97,7 @@ Args parse_args(int argc, char** argv) {
         {"parse-only", no_argument, &args.parse_only, 1},
         {"pfbwt-only", no_argument, &args.pfbwt_only, 1},
         {"trim-non-acgt", no_argument, &args.trim_non_acgt, 1},
+        {"verbose", no_argument, &args.verbose, 1},
         {"sa", no_argument, NULL, 's'},
         {"rssa", no_argument, NULL, 'r'},
         {"mmap", no_argument, NULL, 'm'},
@@ -158,7 +160,7 @@ void vec_to_file(const std::vector<T>& vec, size_t nelems, std::string fname) {
 int run_parser(Args args) {
     // build the dictionary and populate .last, .sai and .parse_old
     using parse_t = pfbwtf::Parser<WangHash>;
-    parse_t p(args.w, args.p);
+    parse_t p(args.w, args.p, args.verbose);
     fprintf(stderr, "starting...\n");
     {
         Timer t("TASK\tParsing\t");
@@ -209,7 +211,7 @@ template<template<typename, typename...> typename R,
 void run_pfbwt(const Args args) {
     FILE* bwt_fp = open_aux_file(args.in_fname.data(),"bwt","wb");
     using pfbwt_t = pfbwtf::PrefixFreeBWT<R,W>;
-    pfbwt_t p(args.in_fname, args.w, args.sa, args.rssa);
+    pfbwt_t p(args.in_fname, args.w, args.sa, args.rssa, args.verbose);
     auto bwt_fn = [bwt_fp, args](const char c) {
         fputc(c, bwt_fp);
     };

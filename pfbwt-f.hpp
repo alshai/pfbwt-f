@@ -52,14 +52,15 @@ class PrefixFreeBWT {
     using UIntType = uint_t;
     using IntType = int_t;
 
-    PrefixFreeBWT(std::string prefix, size_t win_size, bool sa = false, bool ssa = false) :
+    PrefixFreeBWT(std::string prefix, size_t win_size, bool sa = false, bool ssa = false, bool verb = false) :
         fname(prefix),
         w ( win_size),
         dict ( WriteConType<uint8_t>(prefix + "." + EXTDICT)),
         bwlast ( ReadConType<uint8_t>(prefix + "." + EXTBWLST)),
         ilist ( ReadConType<UIntType>(prefix + "." + EXTILIST)),
         build_sa(sa), build_rssa(ssa),
-        any_sa(sa | ssa)
+        any_sa(sa | ssa),
+        verbose(verb)
     {
         if (sa && ssa) die("cannot activate both SA and sampled-SA options!");
         dsize = dict.size();
@@ -89,6 +90,7 @@ class PrefixFreeBWT {
      */
     template<typename BFn, typename SFn>
     void generate_bwt_lcp(BFn bwt_fn, SFn sa_fn) {
+        if (verbose) fprintf(stderr, "generating dict suffixes\n");
         sort_dict_suffixes(true); // build gSA and gLCP of dict
         // start from SA item that's not EndOfWord or EndOfDict
         size_t next, suff_len, wordi;
@@ -96,6 +98,7 @@ class PrefixFreeBWT {
         size_t easy_cases = 0, hard_cases = 0;
         size_t pos = 0;
         UIntType sa, psa = 1;
+        if (verbose) fprintf(stderr, "processing words to build BWT\n");
         for (size_t i = dwords+w+1; i<dsize; i=next) {
             next = i+1;
             get_word_suflen(gsa[i], wordi, suff_len);
@@ -273,6 +276,7 @@ class PrefixFreeBWT {
     bool build_sa = false;
     bool build_rssa = false;
     bool any_sa = false;
+    bool verbose = false;
 };
 }; // namespace end
 #endif
