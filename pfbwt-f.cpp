@@ -234,8 +234,13 @@ void run_pfbwt(const Args args) {
     FILE* bwt_fp = open_aux_file(args.in_fname.data(),"bwt","wb");
     using pfbwt_t = pfbwtf::PrefixFreeBWT<R,W>;
     pfbwt_t p(args.in_fname, args.w, args.sa, args.rssa, args.verbose);
-    auto bwt_fn = [bwt_fp, args](const char c) {
+    char pc = 0;
+    size_t n(0), r(0);
+    auto bwt_fn = [&](const char c) {
         fputc(c, bwt_fp);
+        if (pc != c) ++r;
+        pc = c;
+        ++n;
     };
     if (args.sa) {
         FILE* sa_fp = open_aux_file(args.in_fname.data(), EXTSA, "wb");
@@ -277,6 +282,9 @@ void run_pfbwt(const Args args) {
             p.generate_bwt_lcp(bwt_fn, [](const pfbwtf::sa_fn_arg a){(void) a;});
         }
     }
+    fprintf(stdout, "n: %lu\n", n);
+    fprintf(stdout, "r: %lu\n", r);
+    fprintf(stdout, "n/r: %.3f\n", static_cast<double>(n) / r);
     fclose(bwt_fp);
 }
 
