@@ -39,8 +39,8 @@ class bv_rs : public sdsl_bv_t {
 
     private:
 
-    sdsl::bit_vector::rank_1_type   rank_;
-    sdsl::bit_vector::select_1_type select_;
+    typename sdsl_bv_t::rank_1_type   rank_;
+    typename sdsl_bv_t::select_1_type select_;
 };
 
 #endif
