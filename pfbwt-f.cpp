@@ -23,6 +23,7 @@ struct Args {
     int mmap = 0;
     int parse_only = 0;
     int trim_non_acgt = 0;
+    int non_acgt_to_a = 0;
     int pfbwt_only = 0;
     int verbose = false;
 };
@@ -98,6 +99,7 @@ Args parse_args(int argc, char** argv) {
         {"parse-only", no_argument, &args.parse_only, 1},
         {"pfbwt-only", no_argument, &args.pfbwt_only, 1},
         {"trim-non-acgt", no_argument, &args.trim_non_acgt, 1},
+        {"non-acgt-to-a", no_argument, &args.non_acgt_to_a, 1},
         {"verbose", no_argument, &args.verbose, 1},
         {"sa", no_argument, NULL, 's'},
         {"rssa", no_argument, NULL, 'r'},
@@ -169,15 +171,29 @@ void vec_to_file(const std::vector<T>& vec, size_t nelems, std::string fname) {
     fclose(fp);
 }
 
+pfbwtf::ParserParams args_to_parser_params(Args args) {
+    pfbwtf::ParserParams p;
+    p.fname = args.in_fname;
+    p.w = args.w;
+    p.p = args.p;
+    p.get_sai = args.sa || args.rssa;
+    p.get_da = args.da;
+    p.verbose = args.verbose;
+    p.trim_non_acgt = args.trim_non_acgt;
+    p.non_acgt_to_a = args.non_acgt_to_a;
+    return p;
+}
+
 /* saves dict, occs, ilist, bwlast (and bwsai) to disk */
 int run_parser(Args args) {
     // build the dictionary and populate .last, .sai and .parse_old
     using parse_t = pfbwtf::Parser<WangHash>;
-    parse_t p(args.w, args.p, args.verbose);
+    pfbwtf::ParserParams params(args_to_parser_params(args));
+    parse_t p(params);
     fprintf(stderr, "starting...\n");
     {
         Timer t("TASK\tParsing\t");
-        p.parse_fasta(args.in_fname.data(), (args.sa || args.rssa), args.da, args.trim_non_acgt);
+        p.parse_fasta();
     }
     {
         Timer t("TASK\tsorting dict, calculating occs, dumping to file\t");
@@ -206,8 +222,7 @@ int run_parser(Args args) {
                     vec_to_file<parse_t::UIntType>(ilist, args.in_fname + "." + EXTILIST);
                     if (args.sa || args.rssa) vec_to_file<parse_t::UIntType>(bwsai, args.in_fname + "." + EXTBWSAI);
                     // TODO: should we do DA stuff here too?
-                },
-                (args.sa || args.rssa));
+                });
     }
     {
         Timer t("TASK\tdumping files needed by pfbwt\t");

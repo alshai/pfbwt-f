@@ -20,11 +20,16 @@ KSEQ_INIT(gzFile, gzread);
 
 namespace pfbwtf {
 
-struct ParseArgs {
-    std::string in_fname;
+struct ParserParams {
+    std::string fname;
     size_t w = 10;
     size_t p = 100;
-    bool sai = false;
+    bool get_sai = false;
+    bool get_da = false;
+    bool verbose = false;
+    // if bothm trim_non_acgt and non_acgt_to_a are set, trim_non_acgt takes precedence
+    bool trim_non_acgt = false;
+    bool non_acgt_to_a = false;
 };
 
 template<typename T>
@@ -45,31 +50,29 @@ struct ntab_entry {
 template <typename Hasher>
 struct Parser {
 
-
     public:
 
     using UIntType = uint_t;
 
-    Parser(size_t wsize, size_t pmod, bool verb) :  verbose(verb) {
-        set_w(wsize);
-        set_p(pmod);
+    Parser(ParserParams p) : params(p) {
+        check_w(p.w);
     }
 
     // if get_sai is true, then an UIntType is stored for every phrase
     // encountered (ie., the phrases' position within the text).
     // We might consider writing the UIntType to file instead in the case that
     // the number of phrases is huge.
-    void parse_fasta(const char* fname, const bool get_sai = false, const bool get_da = false, const bool trim_non_acgt = false) {
-        if (get_sai) {
+    void parse_fasta() {
+        if (params.get_sai) {
             sai.clear();
             // TODO: this is not sufficient when the file is gzipped
-            sai.reserve(get_file_size(fname)+1);
+            sai.reserve(get_file_size(params.fname.data())+1);
         }
-        if (get_da) {
+        if (params.get_da) {
             doc_starts.clear();
             doc_names.clear();
         }
-        gzFile fp = gzopen(fname, "r");
+        gzFile fp = gzopen(params.fname.data(), "r");
         if (fp == NULL)
             die("failed to open file!\n");
         kseq_t* seq = kseq_init(fp);
@@ -80,9 +83,9 @@ struct Parser {
         ntab_entry ne;
         std::string phrase;
         phrase.append(1, Dollar);
-        Hasher hf(w);
+        Hasher hf(params.w);
         while (( l = kseq_read(seq) ) >= 0) {
-            if (get_da) {
+            if (params.get_da) {
                 doc_starts.push_back(pos);
                 doc_names.push_back(seq->name.s);
             }
@@ -94,7 +97,7 @@ struct Parser {
 #endif
             for (size_t i = 0; i < seq->seq.l; ++i) {
                 c = std::toupper(seq->seq.s[i]);
-                if (trim_non_acgt) {
+                if (params.trim_non_acgt) {
                     char x = seq_nt4_table[static_cast<size_t>(pc)];
                     char y = seq_nt4_table[static_cast<size_t>(c)];
                     if (y > 3) { // skip if nonACGT
@@ -111,29 +114,31 @@ struct Parser {
                         ntab.push_back(ne);
                         ne.clear();
                     }
-                } // end trim_non_acgt stuff
+                } else if (params.non_acgt_to_a && seq_nt4_table[static_cast<size_t>(c)] > 3) {
+                    c = 'A';
+                }
                 phrase.append(1, c);
                 hf.update(c);
-                if (hf.hashvalue() % p == 0) {
+                if (hf.hashvalue() % params.p == 0) {
                     process_phrase(phrase);
-                    if (get_sai) {
+                    if (params.get_sai) {
                         sai.push_back(pos+1);
                     }
-                    phrase.erase(0, phrase.size()-w);
+                    phrase.erase(0, phrase.size()-params.w);
                 }
                 ++pos;
                 pc = c;
             }
             // record last [^ACGT] run if applicable
-            if (trim_non_acgt && seq_nt4_table[static_cast<size_t>(c)] > 3) {
+            if (params.trim_non_acgt && seq_nt4_table[static_cast<size_t>(c)] > 3) {
                 ntab.push_back(ne);
             }
             ++nseqs;
         }
-        phrase.append(w, Dollar);
+        phrase.append(params.w, Dollar);
         process_phrase(phrase);
-        if (get_sai) {
-            sai.push_back(pos + w);
+        if (params.get_sai) {
+            sai.push_back(pos + params.w);
         }
         kseq_destroy(seq);
         gzclose(fp);
@@ -205,22 +210,12 @@ struct Parser {
         clear_last();
     }
 
-    size_t set_w(size_t x) {
-        if (x < 32) w = x;
-        else {
+    void check_w(size_t x) {
+        if (x > 32){
             fprintf(stderr, "window size w must be < 32!\n");
             exit(1);
         }
-        fprintf(stderr, "w reset. clearing Parser\n");
         clear();
-        return w;
-    }
-
-    size_t set_p(size_t x) {
-        p = x;
-        fprintf(stderr, "p reset. clearing Parser\n");
-        clear();
-        return p;
     }
 
     const std::vector<const char*>& get_parse() const {
@@ -236,7 +231,7 @@ struct Parser {
 
     // generates bwlast and ilist (and bwsai)
     template<typename OutFn>
-    void bwt_of_parse(OutFn out_fn, bool get_sai=false) {
+    void bwt_of_parse(OutFn out_fn) {
         // these will get passed to out_fn at end
         std::vector<char> bwlast;
         std::vector<UIntType> ilist;
@@ -259,7 +254,7 @@ struct Parser {
         for (size_t i = 0; i < n; ++i) {
             k = parse_ranks[i] > k ? parse_ranks[i] : k;
         }
-        if (get_sai) {
+        if (params.get_sai) {
             bwsai.clear();
             bwsai.reserve(n);
         }
@@ -278,21 +273,20 @@ struct Parser {
         bwlast.clear();
         bwlast.reserve(n+1);
         bwlast.push_back(last[n-2]);
-        if (get_sai) bwsai.push_back(sai[n-1]);
+        if (params.get_sai) bwsai.push_back(sai[n-1]);
         for (size_t i = 1; i < n+1; ++i) {
             if (!SA[i]) {
                 SA[i] = 0;
                 bwlast.push_back(0);
                 // TODO: write to bwsai
-                if (get_sai) bwsai.push_back(0);
+                if (params.get_sai) bwsai.push_back(0);
             } else {
                 if (SA[i] == 1) {
                     bwlast.push_back(last[n-1]);
                 } else {
                     bwlast.push_back(last[SA[i]-2]);
                 }
-                // TODO: write to bwtsai
-                if (get_sai) bwsai.push_back(sai[SA[i]-1]);
+                if (params.get_sai) bwsai.push_back(sai[SA[i]-1]);
                 SA[i] = parse_ranks[SA[i] - 1];
             }
         }
@@ -335,7 +329,7 @@ struct Parser {
         auto ret = freqs.insert({phrase, Freq<UIntType>(1)});
         if (!ret.second) ret.first->second.n += 1;
         parse.push_back(ret.first->first.data());
-        last.push_back(phrase[phrase.size()-w-1]);
+        last.push_back(phrase[phrase.size()-params.w-1]);
     }
 
     FreqMap freqs;
@@ -347,9 +341,8 @@ struct Parser {
     std::vector<UIntType> doc_starts;
     std::vector<std::string> doc_names;
     std::vector<ntab_entry> ntab;
-    size_t w, p;
     size_t parse_size;
-    bool verbose = false;
+    ParserParams params;
 };
 }; // namespace end
 
