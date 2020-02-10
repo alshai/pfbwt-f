@@ -65,16 +65,22 @@ struct Parser {
     void parse_fasta() {
         if (params.get_sai) {
             sai.clear();
-            // TODO: this is not sufficient when the file is gzipped
-            sai.reserve(get_file_size(params.fname.data())+1);
+            // TODO: figure out how to check if file is gzipped and prevent this
+            if (params.fname != "-") {
+                sai.reserve(get_file_size(params.fname.data())+1);
+            }
         }
         if (params.get_da) {
             doc_starts.clear();
             doc_names.clear();
         }
-        gzFile fp = gzopen(params.fname.data(), "r");
-        if (fp == NULL)
-            die("failed to open file!\n");
+        gzFile fp;
+        if (params.fname == "-") {
+            fp = gzdopen(fileno(stdin), "r");
+        } else {
+            fp = gzopen(params.fname.data(), "r");
+        }
+        if (fp == NULL) die("failed to open file!\n");
         kseq_t* seq = kseq_init(fp);
         int l;
         uint64_t total_l(0), nseqs(0);

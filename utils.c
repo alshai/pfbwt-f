@@ -180,6 +180,9 @@ uint8_t seq_nt4_table[] = {
 };
 
 size_t get_file_size(const char* path) {
+    if (!strcmp(path, "-")) {
+        die("cannot get file size from stdin");
+    }
     FILE* fp = fopen(path, "rb");
     if (fp == NULL) die("error opening file");
     fseek(fp, 0, SEEK_END);

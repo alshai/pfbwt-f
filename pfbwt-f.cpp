@@ -15,6 +15,7 @@ extern "C" {
 
 struct Args {
     std::string in_fname;
+    std::string output;
     size_t w = 10;
     size_t p = 100;
     int sa = 0;
@@ -105,11 +106,12 @@ Args parse_args(int argc, char** argv) {
         {"rssa", no_argument, NULL, 'r'},
         {"da", no_argument, NULL, 'd'},
         {"mmap", no_argument, NULL, 'm'},
+        {"output", required_argument, NULL, 'o'},
         {"window-size", required_argument, NULL, 'w'},
         {"mod-val", required_argument, NULL, 'p'}
     };
 
-    while ((c = getopt_long( argc, argv, "w:p:hsrfm", lopts, NULL) ) != -1) {
+    while ((c = getopt_long( argc, argv, "w:p:o:hsrfm", lopts, NULL) ) != -1) {
         switch(c) {
             case 'f': // legacy
                 break;
@@ -127,6 +129,8 @@ Args parse_args(int argc, char** argv) {
                 args.p = atoi(optarg); break;
             case 'h':
                 print_help(); exit(0);
+            case 'o':
+                args.output.assign(optarg); break;
             case '?':
                 fprintf(stderr, "Unknown option. Use -h for help.\n");
                 exit(1);
@@ -137,9 +141,8 @@ Args parse_args(int argc, char** argv) {
         args.in_fname.assign( argv[optind] );
     }
     else {
-        fprintf(stderr, "Invalid number of arguments\n");
-        print_help();
-        exit(1);
+        fprintf(stderr, "reading from stdin. Parsing might be a bit slow.\n");
+        args.in_fname.assign("-");
     }
 
     if (args.non_acgt_to_a && args.trim_non_acgt) {
@@ -147,6 +150,13 @@ Args parse_args(int argc, char** argv) {
     }
     if (args.rssa && args.sa) {
         die("cannot have both --sa and --rssa options enabled at same time");
+    }
+
+    if (args.in_fname == "-" && args.output == "") {
+        die("if reading from stdin, need a prefix for output files (-o, --output)");
+    }
+    if (args.in_fname != "-"  && args.output == "") {
+        args.output = args.in_fname;
     }
 
     return args;
@@ -205,8 +215,8 @@ int run_parser(Args args) {
     }
     {
         Timer t("TASK\tsorting dict, calculating occs, dumping to file\t");
-        FILE* dict_fp = open_aux_file(args.in_fname.data(), EXTDICT, "wb");
-        FILE* occ_fp  = open_aux_file(args.in_fname.data(), EXTOCC, "wb");
+        FILE* dict_fp = open_aux_file(args.output.data(), EXTDICT, "wb");
+        FILE* occ_fp  = open_aux_file(args.output.data(), EXTOCC, "wb");
         p.update_dict([&](const char* phrase, parse_t::UIntType freq) {
                 if (fwrite(phrase, 1, strlen(phrase), dict_fp) != strlen(phrase))
                 die("Error writing to DICT file\n");
@@ -220,32 +230,32 @@ int run_parser(Args args) {
         if (fclose(dict_fp)) die("Error closing DICT file");
         else fprintf(stderr, "DICT written to %s.%s\n", args.in_fname.data(), EXTDICT);
         if (fclose(occ_fp)) die("Error closing OCC file");
-        else fprintf(stderr, "OCC written to %s.%s\n", args.in_fname.data(), EXTOCC);
+        else fprintf(stderr, "OCC written to %s.%s\n", args.output.data(), EXTOCC);
     }
     {
         Timer t("TASK\tranking and bwt-ing parse and processing last-chars\t");
         p.bwt_of_parse(
                 [&](const std::vector<char>& bwlast, const std::vector<parse_t::UIntType>& ilist, const std::vector<parse_t::UIntType>& bwsai) {
-                    vec_to_file<char>(bwlast, args.in_fname + "." + EXTBWLST);
-                    vec_to_file<parse_t::UIntType>(ilist, args.in_fname + "." + EXTILIST);
-                    if (args.sa || args.rssa) vec_to_file<parse_t::UIntType>(bwsai, args.in_fname + "." + EXTBWSAI);
+                    vec_to_file<char>(bwlast, args.output + "." + EXTBWLST);
+                    vec_to_file<parse_t::UIntType>(ilist, args.output + "." + EXTILIST);
+                    if (args.sa || args.rssa) vec_to_file<parse_t::UIntType>(bwsai, args.output + "." + EXTBWSAI);
                     // TODO: should we do DA stuff here too?
                 });
     }
     {
         Timer t("TASK\tdumping files needed by pfbwt\t");
         const auto& parse_ranks = p.get_parse_ranks();
-        vec_to_file(parse_ranks, p.get_parse_size(), args.in_fname + "." + EXTPARSE);
+        vec_to_file(parse_ranks, p.get_parse_size(), args.output + "." + EXTPARSE);
     }
     if (args.da) {
         const auto& doc_starts = p.get_doc_starts();
-        vec_to_file(doc_starts, args.in_fname + ".dstarts");
+        vec_to_file(doc_starts, args.output + ".dstarts");
         const auto& doc_names = p.get_doc_names();
-        vec_to_file(doc_names, args.in_fname + ".dnames");
+        vec_to_file(doc_names, args.output + ".dnames");
     }
     // TODO: dump ntab to file if applicable.
     if (args.trim_non_acgt) {
-        vec_to_file(p.get_ntab(), args.in_fname + ".ntab");
+        vec_to_file(p.get_ntab(), args.output + ".ntab");
     }
     return 0;
 }
@@ -254,9 +264,9 @@ template<template<typename, typename...> typename R,
          template<typename, typename...> typename W
          >
 void run_pfbwt(const Args args) {
-    FILE* bwt_fp = open_aux_file(args.in_fname.data(),"bwt","wb");
+    FILE* bwt_fp = open_aux_file(args.output.data(),"bwt","wb");
     using pfbwt_t = pfbwtf::PrefixFreeBWT<R,W>;
-    pfbwt_t p(args.in_fname, args.w, args.sa, args.rssa, args.verbose);
+    pfbwt_t p(args.output, args.w, args.sa, args.rssa, args.verbose);
     char pc = 0;
     size_t n(0), r(0);
     auto bwt_fn = [&](const char c) {
@@ -266,7 +276,7 @@ void run_pfbwt(const Args args) {
         ++n;
     };
     if (args.sa) {
-        FILE* sa_fp = open_aux_file(args.in_fname.data(), EXTSA, "wb");
+        FILE* sa_fp = open_aux_file(args.output.data(), EXTSA, "wb");
         auto sa_fn = [&](const pfbwtf::sa_fn_arg a) {
             fwrite(&a.sa, sizeof(a.sa), 1, sa_fp);
         };
@@ -276,8 +286,8 @@ void run_pfbwt(const Args args) {
         }
         fclose(sa_fp);
     } else if (args.rssa) {
-        FILE* s_fp = open_aux_file(args.in_fname.data(), "ssa", "wb");
-        FILE* e_fp = open_aux_file(args.in_fname.data(), "esa", "wb");
+        FILE* s_fp = open_aux_file(args.output.data(), "ssa", "wb");
+        FILE* e_fp = open_aux_file(args.output.data(), "esa", "wb");
         auto sa_fn = [&](const pfbwtf::sa_fn_arg a) {
             switch(a.run_t) {
                 case pfbwtf::RunType::START:
