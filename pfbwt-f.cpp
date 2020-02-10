@@ -141,6 +141,14 @@ Args parse_args(int argc, char** argv) {
         print_help();
         exit(1);
     }
+
+    if (args.non_acgt_to_a && args.trim_non_acgt) {
+        die("cannot have both --non-acgt-to-a and --trim-non-acgt options enabled at same time");
+    }
+    if (args.rssa && args.sa) {
+        die("cannot have both --sa and --rssa options enabled at same time");
+    }
+
     return args;
 }
 
