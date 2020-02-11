@@ -83,7 +83,10 @@ struct Parser {
         if (fp == NULL) die("failed to open file!\n");
         kseq_t* seq = kseq_init(fp);
         int l;
-        uint64_t total_l(0), nseqs(0);
+        uint64_t nseqs(0);
+#if !M64
+        uint64_t total_l(0);
+#endif
         UIntType pos(0);
         char c('A'), pc('A');
         ntab_entry ne;
@@ -95,11 +98,12 @@ struct Parser {
                 doc_starts.push_back(pos);
                 doc_names.push_back(seq->name.s);
             }
-#ifndef M64
-            total_l += l;
-            if (total_l >= static_cast<uint64_t>(std::numeric_limits<uint32_t>::max)) {
+#if !M64
+            if (total_l + l > 0xFFFFFFFF) {
+                fprintf(stderr, "size: %lu\n", total_l + l);
                 die("input too long, please use 64-bit version");
             }
+            total_l += l;
 #endif
             for (size_t i = 0; i < seq->seq.l; ++i) {
                 c = std::toupper(seq->seq.s[i]);
@@ -246,10 +250,19 @@ struct Parser {
         size_t n; // size of parse_ranks, minus the last EOS character
         // TODO: support large parse sizes
         if (!parse_ranks.size()) generate_parse_ranks();
-        if (parse_ranks.size() > 0x7FFFFFFE) {
-            fprintf(stderr, "currently no support for texts w/ > 2^31-2 phrases\n");
-            exit(1);
+#if !M64
+        // if in 32 bit mode, the number of words is at most 2^31-2
+        if(parse_ranks.size() > 0x7FFFFFFE) {
+            fprintf(stderr, "parse ranks size: %lu\n", parse_ranks.size());
+            die("Input containing more than 2^31-2 phrases! Please use 64 bit version");
         }
+#else
+        // if in 64 bit mode, the number of words is at most 2^32-2 (for now)
+        if(parse_ranks.size() > 0xFFFFFFFEu) {
+            fprintf(stderr, "parse ranks size: %lu\n", parse_ranks.size());
+            die("Input containing more than 2^32-2 phrases! This is currently a hard limit");
+        }
+#endif
         // add EOS if it's not already there
         if (parse_ranks[parse_ranks.size()-1]) {
             n = parse_ranks.size();
