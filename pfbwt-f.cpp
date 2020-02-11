@@ -228,7 +228,7 @@ int run_parser(Args args) {
         );
         if (fputc(EndOfDict, dict_fp) == EOF) die("Error writing EndOfDict to DICT file");
         if (fclose(dict_fp)) die("Error closing DICT file");
-        else fprintf(stderr, "DICT written to %s.%s\n", args.in_fname.data(), EXTDICT);
+        else fprintf(stderr, "DICT written to %s.%s\n", args.output.data(), EXTDICT);
         if (fclose(occ_fp)) die("Error closing OCC file");
         else fprintf(stderr, "OCC written to %s.%s\n", args.output.data(), EXTOCC);
     }
