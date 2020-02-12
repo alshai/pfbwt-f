@@ -18,9 +18,9 @@ extern "C" {
 namespace pfbwtf {
 
 struct SuffixT {
-    SuffixT(uint8_t c, uint32_t i, uint_t w) : bwtc(c), bwtp(i), wordi(w) {}
+    SuffixT(uint8_t c, uint_t i, uint_t w) : bwtc(c), bwtp(i), wordi(w) {}
     uint8_t bwtc;
-    uint32_t bwtp;
+    uint_t bwtp;
     uint_t wordi;
     bool operator<(SuffixT& r);
 };
@@ -62,8 +62,11 @@ class PrefixFreeBWT {
         any_sa(sa | ssa),
         verbose(verb)
     {
+        if (verbose) fprintf(stderr, "loaded files\n");
         if (sa && ssa) die("cannot activate both SA and sampled-SA options!");
         dsize = dict.size();
+        if (verbose) fprintf(stderr, "creating ilist idx\n");
+        if (sa && ssa) die("cannot activate both SA and sampled-SA options!");
         load_ilist_idx(prefix);
         if (sa || ssa) bwsai = ReadConType<UIntType>(prefix + "." + EXTBWSAI);
     }
@@ -230,7 +233,7 @@ class PrefixFreeBWT {
     void load_ilist_idx(std::string fname) {
         ReadConType<UIntType> occs(fname + "." + EXTOCC);
         dwords = occs.size();
-        int total_occs = 0;
+        uint64_t total_occs = 0;
         for (size_t i = 0; i < occs.size(); ++i)
             total_occs += occs[i];
         ilist_idx = sdsl::bit_vector(total_occs+occs[dwords-1], 0); // TODO: do an assert here
