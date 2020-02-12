@@ -98,17 +98,21 @@ class PrefixFreeBWT {
         // start from SA item that's not EndOfWord or EndOfDict
         size_t next, suff_len, wordi;
         uint8_t bwtc, pbwtc = 0;
-        size_t easy_cases = 0, hard_cases = 0;
+        uint64_t easy_cases = 0, hard_cases = 0;
         size_t pos = 0;
         UIntType sa, psa = 1;
         if (verbose) fprintf(stderr, "processing words to build BWT\n");
+        std::vector<uint8_t> chars;
+        std::vector<uint64_t> words;
+        std::vector<SuffixT> suffs;
+        std::vector<size_t> word_ilist;
         for (size_t i = dwords+w+1; i<dsize; i=next) {
             next = i+1;
             get_word_suflen(gsa[i], wordi, suff_len);
             if (suff_len <= w) continue; // ignore small suffixes
             // full word case
             if (gsa[i] == 0 || dict_idx[gsa[i]-1] == 1) {
-                auto word_ilist = get_word_ilist(wordi);
+                word_ilist = get_word_ilist(wordi, word_ilist);
                 for (auto j: word_ilist) {
                     bwtc = bwlast[j];
                     if (any_sa) {
@@ -132,8 +136,6 @@ class PrefixFreeBWT {
             } else { // hard case!
                 // look at all the sufs that share LCP[suf]==this_suffixlen
                 size_t nwordi, nsuff_len;
-                std::vector<uint8_t> chars;
-                std::vector<uint64_t> words;
                 uint8_t c, pc = gsa[i]-1 ? dict[gsa[i]-1] : 0;
                 chars.push_back(pc);
                 words.push_back(wordi);
@@ -151,7 +153,7 @@ class PrefixFreeBWT {
                 if ((!any_sa && same_char) || (any_sa && (words.size() == 1)) ) {
                     // print c to bwt after getting all the lengths
                     for (auto word: words)  {
-                        for (auto k: get_word_ilist(word)) {
+                        for (auto k: get_word_ilist(word, word_ilist)) {
                             if (any_sa) {
                                 UPDATE_SA(chars[0], bwsai[k], Difficulty::EASY2);
                             }
@@ -168,11 +170,10 @@ class PrefixFreeBWT {
                 } else {
                     // TODO: maybe a heap will be better? Like in the original
                     // or it's probably faster to sort ahead of time? IDK, must test
-                    std::vector<SuffixT> suffs;
                     for (size_t idx = 0; idx < words.size(); ++idx) {
                         // get ilist of each of these words, make a heap
                         auto word = words[idx];
-                        for (auto k: get_word_ilist(word)) {
+                        for (auto k: get_word_ilist(word, word_ilist)) {
                             suffs.push_back(SuffixT(chars[idx], k, word));
                         }
                     }
@@ -190,6 +191,7 @@ class PrefixFreeBWT {
                         ++pos;
                         ++hard_cases;
                     }
+                    suffs.clear();
                 }
                 chars.clear();
                 words.clear();
@@ -198,6 +200,7 @@ class PrefixFreeBWT {
         }
         if (build_rssa)
             sa_fn(sa_fn_arg(pos-1, psa, RunType::END, Difficulty::EASY1));
+        fprintf(stderr, "# easy cases: %lu, # hard cases: %lu\n", easy_cases, hard_cases);
         return;
     }
 
@@ -258,6 +261,17 @@ class PrefixFreeBWT {
         auto endpos = wordi >= dwords ? ilist.size()-1 : ilist_idx.select(wordi+1);
         std::vector<size_t> v;
         v.reserve(endpos - startpos + 1);
+        for (size_t j = startpos+1; j < endpos+2; ++j)
+            v.push_back(ilist[j]);
+        return v;
+    }
+
+    std::vector<size_t>& get_word_ilist(size_t wordi, std::vector<size_t>& v) const {
+        // get to the end of the previous word's list, then add one to get
+        // to the start of the current word
+        v.clear();
+        auto startpos = wordi ? ilist_idx.select(wordi) + 1 : 0;
+        auto endpos = wordi >= dwords ? ilist.size()-1 : ilist_idx.select(wordi+1);
         for (size_t j = startpos+1; j < endpos+2; ++j)
             v.push_back(ilist[j]);
         return v;
