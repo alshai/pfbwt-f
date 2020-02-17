@@ -27,6 +27,7 @@ struct Args {
     int non_acgt_to_a = 0;
     int pfbwt_only = 0;
     int verbose = false;
+    int to_stdout = false;
 };
 
 struct Timer {
@@ -101,6 +102,7 @@ Args parse_args(int argc, char** argv) {
         {"pfbwt-only", no_argument, &args.pfbwt_only, 1},
         {"trim-non-acgt", no_argument, &args.trim_non_acgt, 1},
         {"non-acgt-to-a", no_argument, &args.non_acgt_to_a, 1},
+        {"stdout", no_argument, &args.to_stdout, 1},
         {"verbose", no_argument, &args.verbose, 1},
         {"sa", no_argument, NULL, 's'},
         {"rssa", no_argument, NULL, 'r'},
@@ -116,21 +118,23 @@ Args parse_args(int argc, char** argv) {
             case 'f': // legacy
                 break;
             case 's':
-                args.sa = true; break;
+                args.sa = 1; break;
             case 'r':
-                args.rssa = true; break;
+                args.rssa = 1; break;
             case 'd':
-                args.da = true; break;
+                args.da = 1; break;
             case 'w':
                 args.w = atoi(optarg); break;
             case 'm':
-                args.mmap = true; break;
+                args.mmap = 1; break;
             case 'p':
                 args.p = atoi(optarg); break;
             case 'h':
                 print_help(); exit(0);
             case 'o':
                 args.output.assign(optarg); break;
+            case 'c':
+                args.to_stdout = 1; break;
             case '?':
                 fprintf(stderr, "Unknown option. Use -h for help.\n");
                 exit(1);
@@ -264,7 +268,7 @@ template<template<typename, typename...> typename R,
          template<typename, typename...> typename W
          >
 void run_pfbwt(const Args args) {
-    FILE* bwt_fp = open_aux_file(args.output.data(),"bwt","wb");
+    FILE* bwt_fp = args.to_stdout ? stdout : open_aux_file(args.output.data(),"bwt","wb");
     using pfbwt_t = pfbwtf::PrefixFreeBWT<R,W>;
     pfbwt_t p(args.output, args.w, args.sa, args.rssa, args.verbose);
     char pc = 0;
