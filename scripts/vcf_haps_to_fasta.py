@@ -3,6 +3,7 @@ import argparse
 from Bio import SeqIO
 from Bio.Seq import MutableSeq
 import sys
+
 def die(msg):
     sys.stderr.write(msg + "\n")
     exit(1)
@@ -14,10 +15,10 @@ def get_samples_from_bcf(fname):
     bcf.close()
     return samples
 
-def write_marker(fp, hpos, rpos, allele, bytes=8, endian="little"):
-    fp.write(hpos.to_bytes(bytes, "little"))
-    fp.write(rpos.to_bytes(bytes, "little"))
-    fp.write(allele.to_bytes(bytes, "little"))
+def write_marker(fp, hpos, rpos, allele, nbytes=8, endian="little"):
+    fp.write(hpos.to_bytes(nbytes, "little"))
+    fp.write(rpos.to_bytes(nbytes, "little"))
+    fp.write(allele.to_bytes(nbytes, "little"))
 
 # assumes diploid for now
 if __name__ == "__main__":
@@ -29,6 +30,8 @@ if __name__ == "__main__":
     parser.add_argument("-o", help="output prefix", default="haplotypes")
     parser.add_argument("--endian", default="little")
     parser.add_argument("--bytes", default=8)
+    parser.add_argument("--stdout", action='store_true', help="output fasta file to stdout")
+
     # add optional arguments here
     args = parser.parse_args()
     if args.samples:
@@ -42,7 +45,10 @@ if __name__ == "__main__":
     else:
         fasta_in = open(args.fasta)
     pos = 0
-    fasta_fp = open(args.o + ".fa", "w")
+    if args.stdout:
+        fasta_fp = sys.stdout
+    else:
+        fasta_fp = open(args.o + ".fa", "w")
     marker_fp = open(args.o + ".markers", "wb")
     # TODO: check if vcf is sorted and indexed
     for sample in samples:
