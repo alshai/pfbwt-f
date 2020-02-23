@@ -14,6 +14,22 @@ class bv_rs : public sdsl_bv_t {
 
     bv_rs(sdsl_bv_t&& rhs) : sdsl_bv_t(rhs) { }
 
+    /*
+    bv_rs(const std::vector<T>& ivec, const size_t n) {
+        this->resize(n);
+        for (size_t i = 0; i < ivec.size(), ++i) {
+            this->[ivec[i]] = 1;
+        }
+    }
+
+    bv_rs(const std::vector<T>& ivec, const std::vector<U>& vvec, const size_t n) {
+        this->resize(n);
+        for (size_t i = 0; i < ivec.size(); ++i) {
+            this->[ivec[i]] = vvec[i];
+        }
+    }
+    */
+
     bv_rs& operator=(const sdsl_bv_t& rhs) {
         sdsl_bv_t::operator=(rhs);
         return *this;

@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include "sdsl/bit_vectors.hpp"
 #include "sdsl_bv_wrappers.hpp"
+#include "sa_aux.hpp"
 extern "C" {
 #include <sys/mman.h>
 #include "utils.h"
@@ -41,6 +42,15 @@ struct sa_fn_arg {
     Difficulty dif;
 };
 
+struct PrefixFreeBWTParams {
+    std::string prefix;
+    size_t w;
+    bool sa = false;
+    bool rssa = false;
+    bool da = false;
+    bool ma = false;
+    bool verb = false;
+};
 
 template<template <typename, typename...> typename ReadConType,
          template <typename, typename...> typename WriteConType
@@ -52,23 +62,23 @@ class PrefixFreeBWT {
     using UIntType = uint_t;
     using IntType = int_t;
 
-    PrefixFreeBWT(std::string prefix, size_t win_size, bool sa = false, bool ssa = false, bool verb = false) :
-        fname(prefix),
-        w ( win_size),
-        dict ( WriteConType<uint8_t>(prefix + "." + EXTDICT)),
-        bwlast ( ReadConType<uint8_t>(prefix + "." + EXTBWLST)),
-        ilist ( ReadConType<UIntType>(prefix + "." + EXTILIST)),
-        build_sa(sa), build_rssa(ssa),
-        any_sa(sa | ssa),
-        verbose(verb)
+    PrefixFreeBWT(PrefixFreeBWTParams args) :
+        fname(args.prefix),
+        w ( args.w),
+        dict ( WriteConType<uint8_t>(args.prefix + "." + EXTDICT)),
+        bwlast ( ReadConType<uint8_t>(args.prefix + "." + EXTBWLST)),
+        ilist ( ReadConType<UIntType>(args.prefix + "." + EXTILIST)),
+        build_sa(args.sa), build_rssa(args.rssa), build_ma(args.ma),
+        any_sa(args.sa | args.rssa | args.ma),
+        verbose(args.verb)
     {
         if (verbose) fprintf(stderr, "loaded files\n");
-        if (sa && ssa) die("cannot activate both SA and sampled-SA options!");
+        if (args.sa && args.rssa) die("cannot activate both SA and sampled-SA options!");
         dsize = dict.size();
         if (verbose) fprintf(stderr, "creating ilist idx\n");
-        if (sa && ssa) die("cannot activate both SA and sampled-SA options!");
-        load_ilist_idx(prefix);
-        if (sa || ssa) bwsai = ReadConType<UIntType>(prefix + "." + EXTBWSAI);
+        if (args.sa && args.rssa) die("cannot activate both SA and sampled-SA options!");
+        load_ilist_idx(args.prefix);
+        if (args.sa || args.rssa) bwsai = ReadConType<UIntType>(args.prefix + "." + EXTBWSAI);
     }
 
 #define get_word_suflen(i, d, s) \
@@ -91,8 +101,10 @@ class PrefixFreeBWT {
 
      /* uses LCP of dict to build BWT (less memory, more time)
      */
-    template<typename BFn, typename SFn>
-    void generate_bwt_lcp(BFn bwt_fn, SFn sa_fn) {
+    template<typename BFn, typename SFn, typename AuxFn>
+    void generate_bwt_lcp(BFn bwt_fn, 
+                          SFn sa_fn = [](UIntType m, UIntType a){}, 
+                          AuxFn aux_fn = [](UIntType m, UIntType a){}) {
         if (verbose) fprintf(stderr, "generating dict suffixes\n");
         sort_dict_suffixes(true); // build gSA and gLCP of dict
         // start from SA item that's not EndOfWord or EndOfDict
@@ -122,6 +134,10 @@ class PrefixFreeBWT {
                             sa = bwsai[0] - this->w;
                             sa_fn(sa_fn_arg(pos, sa, RunType::START, Difficulty::EASY1));
                             psa = sa; // save current sa 
+                        }
+                        if (build_ma) {
+                            auto marker_pair = markers[sa];
+                            aux_fn(std::get<0>(marker_pair), std::get<0>(marker_pair));
                         }
                         /*
                         if (update_da) {
@@ -221,6 +237,7 @@ class PrefixFreeBWT {
         if (build_lcp)
             gsacak(&dict[0], &gsa[0], &glcp[0], NULL, dsize);
         else { // for when memory is low
+            die("non-LCP option not yet implemented");
             gsacak(&dict[0], &gsa[0], NULL, NULL, dsize);
             // TODO: build FM index over dict
         }
@@ -246,6 +263,10 @@ class PrefixFreeBWT {
             ilist_idx[o-1] = 1;
         }
         ilist_idx.init_rs();
+    }
+
+    void load_marker_array(std::string fname) {
+        
     }
 
     size_t get_ilist_size(size_t wordi) const {
@@ -290,8 +311,10 @@ class PrefixFreeBWT {
     WriteConType<IntType> glcp; // gLCP of dict words
     bv_rs<> ilist_idx; // bitvec w/ 1 on ends of dict word occs in ilist
     bv_rs<> dict_idx; // bitvec w/ 1 on word end positions in dict
+    MarkerArray<UIntType> markers;
     bool build_sa = false;
     bool build_rssa = false;
+    bool build_ma = false;
     bool any_sa = false;
     bool verbose = false;
 };

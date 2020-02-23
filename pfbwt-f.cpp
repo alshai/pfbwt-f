@@ -21,6 +21,7 @@ struct Args {
     int sa = 0;
     int rssa = 0;
     int da = 0;
+    int ma = 0;
     int mmap = 0;
     int parse_only = 0;
     int trim_non_acgt = 0;
@@ -106,6 +107,7 @@ Args parse_args(int argc, char** argv) {
         {"verbose", no_argument, &args.verbose, 1},
         {"sa", no_argument, NULL, 's'},
         {"rssa", no_argument, NULL, 'r'},
+        {"ma", no_argument, &args.ma, 1},
         {"da", no_argument, NULL, 'd'},
         {"mmap", no_argument, NULL, 'm'},
         {"output", required_argument, NULL, 'o'},
@@ -163,6 +165,9 @@ Args parse_args(int argc, char** argv) {
         args.output = args.in_fname;
     }
 
+    /* TODO: remove this */
+    if (args.ma) die("marker array support coming soon!");
+
     return args;
 }
 
@@ -203,6 +208,19 @@ pfbwtf::ParserParams args_to_parser_params(Args args) {
     p.verbose = args.verbose;
     p.trim_non_acgt = args.trim_non_acgt;
     p.non_acgt_to_a = args.non_acgt_to_a;
+    return p;
+}
+
+
+pfbwtf::PrefixFreeBWTParams args_to_pfbwt_params(Args args) {
+    pfbwtf::PrefixFreeBWTParams p;
+    p.prefix = args.in_fname;
+    p.w = args.w;
+    p.sa = args.sa;
+    p.rssa  = args.rssa;
+    p.ma = args.ma;
+    p.da = args.da;
+    p.verb = args.verbose;
     return p;
 }
 
@@ -268,9 +286,10 @@ template<template<typename, typename...> typename R,
          template<typename, typename...> typename W
          >
 void run_pfbwt(const Args args) {
+    pfbwtf::PrefixFreeBWTParams pfbwt_args(args_to_pfbwt_params(args));
     FILE* bwt_fp = args.to_stdout ? stdout : open_aux_file(args.output.data(),"bwt","wb");
     using pfbwt_t = pfbwtf::PrefixFreeBWT<R,W>;
-    pfbwt_t p(args.output, args.w, args.sa, args.rssa, args.verbose);
+    pfbwt_t p(pfbwt_args);
     char pc = 0;
     size_t n(0), r(0);
     auto bwt_fn = [&](const char c) {
@@ -286,7 +305,7 @@ void run_pfbwt(const Args args) {
         };
         {
             Timer t("TASK\tgenerating final BWT w/ full SA\t");
-            p.generate_bwt_lcp(bwt_fn, sa_fn);
+            p.generate_bwt_lcp(bwt_fn, sa_fn, [](...){});
         }
         fclose(sa_fp);
     } else if (args.rssa) {
@@ -308,7 +327,7 @@ void run_pfbwt(const Args args) {
         };
         {
             Timer t("TASK\tgenerating final BWT w/ run-length sampled SA\t");
-            p.generate_bwt_lcp(bwt_fn, sa_fn);
+            p.generate_bwt_lcp(bwt_fn, sa_fn, [](...){});
         }
         fclose(s_fp);
         fclose(e_fp);
@@ -316,7 +335,7 @@ void run_pfbwt(const Args args) {
     else { // default case: just output bwt
         {
             Timer t("TASK\tgenerating final BWT w/o SA\t");
-            p.generate_bwt_lcp(bwt_fn, [](const pfbwtf::sa_fn_arg a){(void) a;});
+            p.generate_bwt_lcp(bwt_fn, [](const pfbwtf::sa_fn_arg a){(void) a;}, [](...){});
         }
     }
     fprintf(stdout, "n: %lu\n", n);
