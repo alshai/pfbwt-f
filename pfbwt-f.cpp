@@ -338,9 +338,9 @@ void run_pfbwt(const Args args) {
             p.generate_bwt_lcp(bwt_fn, [](const pfbwtf::sa_fn_arg a){(void) a;}, [](...){});
         }
     }
-    fprintf(stdout, "n: %lu\n", n);
-    fprintf(stdout, "r: %lu\n", r);
-    fprintf(stdout, "n/r: %.3f\n", static_cast<double>(n) / r);
+    fprintf(stderr, "n: %lu\n", n);
+    fprintf(stderr, "r: %lu\n", r);
+    fprintf(stderr, "n/r: %.3f\n", static_cast<double>(n) / r);
     fclose(bwt_fp);
 }
 
