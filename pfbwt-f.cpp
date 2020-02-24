@@ -16,6 +16,7 @@ extern "C" {
 struct Args {
     std::string in_fname;
     std::string output;
+    std::string stdout_ext;
     size_t w = 10;
     size_t p = 100;
     int sa = 0;
@@ -28,7 +29,6 @@ struct Args {
     int non_acgt_to_a = 0;
     int pfbwt_only = 0;
     int verbose = false;
-    int to_stdout = false;
 };
 
 struct Timer {
@@ -71,19 +71,25 @@ void print_help() {
     BWT of input saved to <fasta file>.bwt. Header lines are excluded.\n\
 \n\
 options\n\
-    -s              Build full suffix array and output to <fasta file>.sa\n\
+    -s                  Output full suffix array to <fasta file>.sa\n\
     \n\
-    -r              Build run-length sampled suffix arrray and output run-starts to <fasta file>.ssa and run-ends to <fasta file>.esa\n\
+    -r                  Output run-length sampled suffix arrray to \n\
+                        <fasta file>.ssa (run-starts) and \n\
+                        <fasta file>.esa (run-ends)\n\
     \n\
-    -w <int>        window-size for parsing [default: 10] \n\
+    -w <int>            window-size for parsing [default: 10] \n\
     \n\
-    -p <int>        modulo for parsing [default: 100]\n\
+    -p <int>            modulo for parsing [default: 100]\n\
     \n\
-    -m              build BWT on external memory\n\
+    -m                  build BWT on external memory\n\
     \n\
-    --parse-only    only produce parse (dict, occ, ilist, last, bwlast files), do not build BWT\n\
+    --parse-only        only produce parse (dict, occ, ilist, last, bwlast)\n\
+                        do not build final BWT\n\
     \n\
-    -h              print this help message\n\
+    -c/--stdout <ext>   output file ending <ext> will be stdout instead.\n\
+                        (example: '-c bwt' would output <fasta file>.bwt to stdout)\n\
+                        options: bwt, sa\n\
+    -h                  print this help message\n\
 ");
 }
 
@@ -103,7 +109,7 @@ Args parse_args(int argc, char** argv) {
         {"pfbwt-only", no_argument, &args.pfbwt_only, 1},
         {"trim-non-acgt", no_argument, &args.trim_non_acgt, 1},
         {"non-acgt-to-a", no_argument, &args.non_acgt_to_a, 1},
-        {"stdout", no_argument, &args.to_stdout, 1},
+        {"stdout", required_argument, NULL, 'c'},
         {"verbose", no_argument, &args.verbose, 1},
         {"sa", no_argument, NULL, 's'},
         {"rssa", no_argument, NULL, 'r'},
@@ -136,7 +142,7 @@ Args parse_args(int argc, char** argv) {
             case 'o':
                 args.output.assign(optarg); break;
             case 'c':
-                args.to_stdout = 1; break;
+                args.stdout_ext = optarg; break;
             case '?':
                 fprintf(stderr, "Unknown option. Use -h for help.\n");
                 exit(1);
@@ -282,12 +288,20 @@ int run_parser(Args args) {
     return 0;
 }
 
+std::FILE* init_file_pointer(const Args& args, std::string ext) {
+    if (args.stdout_ext == ext) {
+        return stdout;
+    } else {
+        return open_aux_file(args.output.data(), ext.data(), "wb");
+    }
+}
+
 template<template<typename, typename...> typename R,
          template<typename, typename...> typename W
          >
 void run_pfbwt(const Args args) {
     pfbwtf::PrefixFreeBWTParams pfbwt_args(args_to_pfbwt_params(args));
-    FILE* bwt_fp = args.to_stdout ? stdout : open_aux_file(args.output.data(),"bwt","wb");
+    std::FILE* bwt_fp = init_file_pointer(args, "bwt");
     using pfbwt_t = pfbwtf::PrefixFreeBWT<R,W>;
     pfbwt_t p(pfbwt_args);
     char pc = 0;
@@ -299,7 +313,8 @@ void run_pfbwt(const Args args) {
         ++n;
     };
     if (args.sa) {
-        FILE* sa_fp = open_aux_file(args.output.data(), EXTSA, "wb");
+        std::FILE* sa_fp = init_file_pointer(args, "sa");
+        // std::FILE* sa_fp = open_aux_file(args.output.data(), EXTSA, "wb");
         auto sa_fn = [&](const pfbwtf::sa_fn_arg a) {
             fwrite(&a.sa, sizeof(a.sa), 1, sa_fp);
         };
