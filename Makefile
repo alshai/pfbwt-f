@@ -30,6 +30,9 @@ simplebwt: simplebwt.o gsa/gsacak.o
 simplebwt64: simplebwt.o gsa/gsacak64.o
 	$(CC) $(CFLAGS) -DM64 -o $@ $< gsa/gsacak64.o
 
+dump_intfile: scripts/dump_intfile.cpp
+	$(CXX) $(CXX_FLAGS) -o $@ $<
+
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
