@@ -24,6 +24,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("fasta")
     parser.add_argument("vcf")
+    parser.add_argument("--stdout", action='store_true', help="output fasta to stdout")
     parser.add_argument("--samples", help="file name specifying which samples to print")
     parser.add_argument("--nsamples", type=int, default=None, help="print first n samples from this VCF")
     parser.add_argument("-o", help="output prefix", default="haplotypes")
@@ -42,7 +43,10 @@ if __name__ == "__main__":
     else:
         fasta_in = open(args.fasta)
     pos = 0
-    fasta_fp = open(args.o + ".fa", "w")
+    if args.stdout:
+        fasta_fp = sys.stdout
+    else:
+        fasta_fp = open(args.o + ".fa", "w")
     marker_fp = open(args.o + ".markers", "wb")
     # TODO: check if vcf is sorted and indexed
     for sample in samples:
@@ -81,7 +85,7 @@ if __name__ == "__main__":
                         prec_end = rec.start + len(rec.REF)
                 bcf.close()
                 fasta_fp.write(str(seq[prec_end:]) + "\n")
-                pos += len(seq) - prec_end;
+                pos += len(seq) - prec_end
             fasta_in.seek(0)
     marker_fp.close()
     fasta_fp.close()
