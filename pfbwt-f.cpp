@@ -302,7 +302,6 @@ template<template<typename, typename...> typename R,
 void run_pfbwt(const Args args) {
     pfbwtf::PrefixFreeBWTParams pfbwt_args(args_to_pfbwt_params(args));
     std::FILE* bwt_fp = init_file_pointer_wb(args, "bwt");
-    fprintf(stderr, "opening bwt\n");
     using pfbwt_t = pfbwtf::PrefixFreeBWT<R,W>;
     pfbwt_t p(pfbwt_args);
     char pc = 0;
@@ -315,7 +314,6 @@ void run_pfbwt(const Args args) {
     };
     if (args.sa) {
         std::FILE* sa_fp = init_file_pointer_wb(args, "sa");
-        fprintf(stderr, "opening sa\n");
         // std::FILE* sa_fp = open_aux_file(args.output.data(), EXTSA, "wb");
         auto sa_fn = [&](const pfbwtf::sa_fn_arg a) {
             fwrite(&a.sa, sizeof(a.sa), 1, sa_fp);
