@@ -29,7 +29,7 @@ if __name__ == "__main__":
     parser.add_argument("--nsamples", type=int, default=None, help="print first n samples from this VCF")
     parser.add_argument("-o", help="output prefix", default="haplotypes")
     parser.add_argument("--endian", default="little")
-    parser.add_argument("--bytes", default=8)
+    parser.add_argument("--bytes", type=int, default=8)
     # add optional arguments here
     args = parser.parse_args()
     if args.samples:
