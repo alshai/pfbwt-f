@@ -112,7 +112,7 @@ class PrefixFreeBWT {
         uint8_t bwtc, pbwtc = 0;
         uint64_t easy_cases = 0, hard_cases = 0;
         size_t pos = 0;
-        UIntType sa, psa = 1;
+        UIntType sa = 0, psa = 1;
         if (verbose) fprintf(stderr, "processing words to build BWT\n");
         std::vector<uint8_t> chars;
         std::vector<uint64_t> words;

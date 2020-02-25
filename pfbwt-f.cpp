@@ -220,7 +220,7 @@ pfbwtf::ParserParams args_to_parser_params(Args args) {
 
 pfbwtf::PrefixFreeBWTParams args_to_pfbwt_params(Args args) {
     pfbwtf::PrefixFreeBWTParams p;
-    p.prefix = args.in_fname;
+    p.prefix = args.output;
     p.w = args.w;
     p.sa = args.sa;
     p.rssa  = args.rssa;
@@ -288,7 +288,7 @@ int run_parser(Args args) {
     return 0;
 }
 
-std::FILE* init_file_pointer(const Args& args, std::string ext) {
+std::FILE* init_file_pointer_wb(const Args& args, std::string ext) {
     if (args.stdout_ext == ext) {
         return stdout;
     } else {
@@ -301,7 +301,8 @@ template<template<typename, typename...> typename R,
          >
 void run_pfbwt(const Args args) {
     pfbwtf::PrefixFreeBWTParams pfbwt_args(args_to_pfbwt_params(args));
-    std::FILE* bwt_fp = init_file_pointer(args, "bwt");
+    std::FILE* bwt_fp = init_file_pointer_wb(args, "bwt");
+    fprintf(stderr, "opening bwt\n");
     using pfbwt_t = pfbwtf::PrefixFreeBWT<R,W>;
     pfbwt_t p(pfbwt_args);
     char pc = 0;
@@ -313,7 +314,8 @@ void run_pfbwt(const Args args) {
         ++n;
     };
     if (args.sa) {
-        std::FILE* sa_fp = init_file_pointer(args, "sa");
+        std::FILE* sa_fp = init_file_pointer_wb(args, "sa");
+        fprintf(stderr, "opening sa\n");
         // std::FILE* sa_fp = open_aux_file(args.output.data(), EXTSA, "wb");
         auto sa_fn = [&](const pfbwtf::sa_fn_arg a) {
             fwrite(&a.sa, sizeof(a.sa), 1, sa_fp);
