@@ -95,9 +95,9 @@ def get_samples_from_bcf(fname):
     return samples
 
 
-def write_marker(fp, hpos, rpos, allele, bytes=8, endian="little"):
-    fp.write(hpos.to_bytes(bytes, "little"))
-    fp.write(rpos.to_bytes(bytes, "little"))
+def write_marker(fp, suffix_pos, ref_pos, allele, bytes=8, endian="little"):
+    fp.write(suffix_pos.to_bytes(bytes, "little"))
+    fp.write(ref_pos.to_bytes(bytes, "little"))
 
 
 class VCFToFastaMarkersArgs:
@@ -244,9 +244,10 @@ input: MarkerArrayArgs
 results: writes marker array to args.out + ".ma"
          optionally writes suffix array to args.out + ".sa"
          ".ma" file formatted as follows:
-         <SA value> <Marker value>
+         <Array Position> <Marker Value>
 """
 def marker_array(args):
+    i = int(0)
     nbytes = args.bytes
     endian = args.endian
     sa_in = args.sa_fp
@@ -265,9 +266,10 @@ def marker_array(args):
         if s < marr.shape[0]:
             marker = marr[s,0]
             if marker:
-                ma_out.write(s.to_bytes(nbytes, endian))
+                ma_out.write(i.to_bytes(nbytes, endian))
                 ma_out.write(marker.tobytes())
         bytestr = sa_in.read(nbytes)
+        i += 1
     ma_out.close()
     if args.save_sa:
         sa_out.close()
