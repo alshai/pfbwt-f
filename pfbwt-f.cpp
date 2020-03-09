@@ -29,6 +29,7 @@ struct Args {
     int non_acgt_to_a = 0;
     int pfbwt_only = 0;
     int verbose = false;
+    int print_docs = 0;
 };
 
 struct Timer {
@@ -109,6 +110,7 @@ Args parse_args(int argc, char** argv) {
         {"pfbwt-only", no_argument, &args.pfbwt_only, 1},
         {"trim-non-acgt", no_argument, &args.trim_non_acgt, 1},
         {"non-acgt-to-a", no_argument, &args.non_acgt_to_a, 1},
+        {"print-docs", no_argument, &args.print_docs, 1},
         {"stdout", required_argument, NULL, 'c'},
         {"verbose", no_argument, &args.verbose, 1},
         {"sa", no_argument, NULL, 's'},
@@ -214,6 +216,7 @@ pfbwtf::ParserParams args_to_parser_params(Args args) {
     p.verbose = args.verbose;
     p.trim_non_acgt = args.trim_non_acgt;
     p.non_acgt_to_a = args.non_acgt_to_a;
+    p.print_docs = args.print_docs;
     return p;
 }
 

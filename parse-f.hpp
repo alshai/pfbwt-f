@@ -30,6 +30,7 @@ struct ParserParams {
     // if bothm trim_non_acgt and non_acgt_to_a are set, trim_non_acgt takes precedence
     bool trim_non_acgt = false;
     bool non_acgt_to_a = false;
+    bool print_docs = false;
 };
 
 template<typename T>
@@ -81,6 +82,10 @@ struct Parser {
             fp = gzopen(params.fname.data(), "r");
         }
         if (fp == NULL) die("failed to open file!\n");
+        std::FILE* docs_fp = NULL;
+        if (params.print_docs) {
+            docs_fp = open_aux_file(params.fname.data(), "docs", "w");
+        }
         kseq_t* seq = kseq_init(fp);
         int l;
         uint64_t nseqs(0);
@@ -97,6 +102,9 @@ struct Parser {
             if (params.get_da) {
                 doc_starts.push_back(pos);
                 doc_names.push_back(seq->name.s);
+            }
+            if (params.print_docs) {
+                fprintf(docs_fp, "%s\t%lu\n", seq->name.s, pos);
             }
 #if !M64
             if (total_l + l > 0xFFFFFFFF) {
@@ -150,6 +158,7 @@ struct Parser {
         if (params.get_sai) {
             sai.push_back(pos + params.w);
         }
+        if (params.print_docs) fclose(docs_fp);
         kseq_destroy(seq);
         gzclose(fp);
         return;
