@@ -286,7 +286,10 @@ if __name__ == "__main__":
     parser.add_argument("--endian", default="little", choices=["big", "little"])
     parser.add_argument("--bytes", type=int, default=8, choices=[4,8])
     parser.add_argument("--save_fasta", action='store_true', default=False)
-    parser.add_argument("--save_sa", action='store_true', default=False)
+    parser.add_argument("--save_sa", "-s", action='store_true', default=False)
+    parser.add_argument("--save_rssa", "-r", action='store_true')
+    parser.add_argument("-w", default="10")
+    parser.add_argument("-p", default="100")
     args = parser.parse_args()
 
     # sanity check arguments
@@ -302,19 +305,27 @@ if __name__ == "__main__":
         out = args.fasta
 
     # feed haplotypes into parsinng step
-    parse_cmd = [exe, "--parse-only", "-o", args.fasta, "-s"]
+    parse_cmd = [exe, "--parse-only", "-o", args.out, "-s", "-w", args.w, "-p", args.p]
     err1 = open("{}.parse.err".format(out), "w")
+    err1.write("running: {}\n".format(' '.join(parse_cmd)))
     with subprocess.Popen(parse_cmd, stdin=subprocess.PIPE, stderr=err1) as p:
         for s in vcf_to_fasta_markers(VCFToFastaMarkersArgs(args)):
             p.stdin.write(s)
         p.stdin.close()
         if p.wait():
-            err1.write("error in pfbwtf --parse-only!\n")
+            sys.stderr.write("error in pfbwt-f --parse-only! Check {}.parse.err\n".format(out))
+            exit(1)
         err1.close()
 
     # build the BWT and generate marker array
-    pfbwt_cmd = [exe, "--pfbwt-only", "-o", args.fasta, "-s", "--stdout", "sa"]
+    pfbwt_cmd = [exe, "--pfbwt-only", "-o", args.out, "-s", "--stdout", "sa", "-w", args.w, "-p", args.p]
+    if args.save_rssa:
+        pfbwt_cmd.append("-r")
     err2 = open("{}.pfbwt.err".format(out), "w")
+    err2.write("running: {}\n".format(' '.join(pfbwt_cmd)))
     with subprocess.Popen(pfbwt_cmd, stderr=err2, stdout=subprocess.PIPE) as p:
         marker_array(MarkerArrayArgs(args, p.stdout, err2))
+        if p.wait():
+            sys.stderr.write("error in pfbwt-f --pfbwt-only! Check {}.pfbwt.err\n".format(out))
+            exit(1)
         err2.close()
