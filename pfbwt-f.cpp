@@ -22,7 +22,6 @@ struct Args {
     int sa = 0;
     int rssa = 0;
     int da = 0;
-    int ma = 0;
     int mmap = 0;
     int parse_only = 0;
     int trim_non_acgt = 0;
@@ -30,6 +29,7 @@ struct Args {
     int pfbwt_only = 0;
     int verbose = false;
     int print_docs = 0;
+    size_t n = 0;
 };
 
 struct Timer {
@@ -115,7 +115,6 @@ Args parse_args(int argc, char** argv) {
         {"verbose", no_argument, &args.verbose, 1},
         {"sa", no_argument, NULL, 's'},
         {"rssa", no_argument, NULL, 'r'},
-        {"ma", no_argument, &args.ma, 1},
         {"da", no_argument, NULL, 'd'},
         {"mmap", no_argument, NULL, 'm'},
         {"output", required_argument, NULL, 'o'},
@@ -162,9 +161,11 @@ Args parse_args(int argc, char** argv) {
     if (args.non_acgt_to_a && args.trim_non_acgt) {
         die("cannot have both --non-acgt-to-a and --trim-non-acgt options enabled at same time");
     }
+    /*
     if (args.rssa && args.sa) {
         die("cannot have both --sa and --rssa options enabled at same time");
     }
+    */
 
     if (args.in_fname == "-" && args.output == "") {
         die("if reading from stdin, need a prefix for output files (-o, --output)");
@@ -172,9 +173,6 @@ Args parse_args(int argc, char** argv) {
     if (args.in_fname != "-"  && args.output == "") {
         args.output = args.in_fname;
     }
-
-    /* TODO: remove this */
-    if (args.ma) die("marker array support coming soon!");
 
     return args;
 }
@@ -227,22 +225,22 @@ pfbwtf::PrefixFreeBWTParams args_to_pfbwt_params(Args args) {
     p.w = args.w;
     p.sa = args.sa;
     p.rssa  = args.rssa;
-    p.ma = args.ma;
     p.da = args.da;
     p.verb = args.verbose;
     return p;
 }
 
 /* saves dict, occs, ilist, bwlast (and bwsai) to disk */
-int run_parser(Args args) {
+size_t run_parser(Args args) {
     // build the dictionary and populate .last, .sai and .parse_old
     using parse_t = pfbwtf::Parser<WangHash>;
+    size_t n = 0;
     pfbwtf::ParserParams params(args_to_parser_params(args));
     parse_t p(params);
     fprintf(stderr, "starting...\n");
     {
         Timer t("TASK\tParsing\t");
-        p.parse_fasta();
+        n = p.parse_fasta();
     }
     {
         Timer t("TASK\tsorting dict, calculating occs, dumping to file\t");
@@ -288,7 +286,10 @@ int run_parser(Args args) {
     if (args.trim_non_acgt) {
         vec_to_file(p.get_ntab(), args.output + ".ntab");
     }
-    return 0;
+    std::FILE* n_fp = open_aux_file(args.output.data(), "n", "w");
+    fprintf(n_fp, "%lu\n", n);
+    fclose(n_fp);
+    return n;
 }
 
 std::FILE* init_file_pointer_wb(const Args& args, std::string ext) {
@@ -299,6 +300,22 @@ std::FILE* init_file_pointer_wb(const Args& args, std::string ext) {
     }
 }
 
+size_t read_single_int_str(const char* fname, const char* ext) {
+    size_t n = 0;
+    std::FILE* n_fp = open_aux_file(fname, ext, "r");
+    char* line = NULL;
+    size_t x = 0;
+    if (getline(&line, &x, n_fp) != -1) {
+        n = std::atol(line);
+    } else { 
+        die("could not read '.n' file");
+        return 0;
+    }
+    free(line);
+    fclose(n_fp);
+    return n;
+}
+
 template<template<typename, typename...> typename R,
          template<typename, typename...> typename W
          >
@@ -307,53 +324,68 @@ void run_pfbwt(const Args args) {
     std::FILE* bwt_fp = init_file_pointer_wb(args, "bwt");
     using pfbwt_t = pfbwtf::PrefixFreeBWT<R,W>;
     pfbwt_t p(pfbwt_args);
-    char pc = 0;
-    size_t n(0), r(0);
-    auto bwt_fn = [&](const char c) {
-        fputc(c, bwt_fp);
-        if (pc != c) ++r;
-        pc = c;
-        ++n;
-    };
-    if (args.sa) {
-        std::FILE* sa_fp = init_file_pointer_wb(args, "sa");
-        // std::FILE* sa_fp = open_aux_file(args.output.data(), EXTSA, "wb");
-        auto sa_fn = [&](const pfbwtf::sa_fn_arg a) {
-            fwrite(&a.sa, sizeof(a.sa), 1, sa_fp);
-        };
-        {
-            Timer t("TASK\tgenerating final BWT w/ full SA\t");
-            p.generate_bwt_lcp(bwt_fn, sa_fn, [](...){});
-        }
-        fclose(sa_fp);
-    } else if (args.rssa) {
-        FILE* s_fp = open_aux_file(args.output.data(), "ssa", "wb");
-        FILE* e_fp = open_aux_file(args.output.data(), "esa", "wb");
-        auto sa_fn = [&](const pfbwtf::sa_fn_arg a) {
-            switch(a.run_t) {
-                case pfbwtf::RunType::START:
-                    fwrite(&a.pos, sizeof(a.pos), 1, s_fp);
-                    fwrite(&a.sa, sizeof(a.sa), 1, s_fp);
-                    break;
-                case pfbwtf::RunType::END:
-                    fwrite(&a.pos, sizeof(a.pos), 1, e_fp);
-                    fwrite(&a.sa, sizeof(a.sa), 1, e_fp);
-                    break;
-                default:
-                    die("error: invalid RunType");
-            }
-        };
-        {
-            Timer t("TASK\tgenerating final BWT w/ run-length sampled SA\t");
-            p.generate_bwt_lcp(bwt_fn, sa_fn, [](...){});
-        }
-        fclose(s_fp);
-        fclose(e_fp);
+    size_t r = 0;
+    size_t n = args.n;
+    if (!args.n) {
+        fprintf(stderr, "reading n from file\n");
+        n = read_single_int_str(args.output.data(), "n");
     }
-    else { // default case: just output bwt
+    if (args.sa | args.rssa ) {
+        std::FILE* sa_fp = NULL;
+        std::FILE* ssa_fp = NULL;
+        std::FILE* esa_fp = NULL;
+        if (args.sa)
+            sa_fp = init_file_pointer_wb(args, "sa");
+        if (args.rssa) {
+            ssa_fp = open_aux_file(args.output.data(), "ssa", "wb");
+            esa_fp = open_aux_file(args.output.data(), "esa", "wb");
+        }
+        typename pfbwt_t::UIntType psa = 0;
+        typename pfbwt_t::UIntType pi = 0, i = 0;
+        auto out_fn = [&](const pfbwtf::out_fn_arg a) {
+            fwrite(&a.bwtc, sizeof(a.bwtc), 1, bwt_fp);
+            if (args.sa) {
+                typename pfbwt_t::UIntType x = i ? a.sa : n;
+                fwrite(&x, sizeof(x), 1, sa_fp);
+            }
+            if (a.bwtc != a.pbwtc) { // run_start
+                ++r;
+                if (args.rssa) {
+                    typename pfbwt_t::UIntType x = i ? a.sa : n;
+                    fwrite(&i, sizeof(i), 1, ssa_fp);
+                    fwrite(&x, sizeof(x), 1, ssa_fp);
+                    if (i) {
+                        fwrite(&pi, sizeof(pi), 1, esa_fp);
+                        fwrite(&psa, sizeof(psa), 1, esa_fp);
+                    }
+                }
+            }
+            pi = i;
+            psa = a.sa;
+            i += 1;
+        };
         {
+            Timer t("TASK\tgenerating final BWT w/ full and/or run-length SA\t");
+            p.generate_bwt_lcp(out_fn);
+            // write final run
+            if (args.rssa) {
+                fwrite(&pi, sizeof(pi), 1, esa_fp);
+                fwrite(&psa, sizeof(psa), 1, esa_fp);
+            }
+        }
+        if (args.sa) fclose(sa_fp);
+        if (args.rssa) {
+            fclose(ssa_fp);
+            fclose(esa_fp);
+        }
+    } else { // default case: just output bwt
+        {
+            auto out_fn = [&](const pfbwtf::out_fn_arg a) {
+                if (a.bwtc != a.pbwtc) ++r;
+                fwrite(&a.bwtc, sizeof(a.bwtc), 1, bwt_fp);
+            };
             Timer t("TASK\tgenerating final BWT w/o SA\t");
-            p.generate_bwt_lcp(bwt_fn, [](const pfbwtf::sa_fn_arg a){(void) a;}, [](...){});
+            p.generate_bwt_lcp(out_fn);
         }
     }
     fprintf(stderr, "n: %lu\n", n);
@@ -365,7 +397,7 @@ void run_pfbwt(const Args args) {
 int main(int argc, char** argv) {
     Args args(parse_args(argc, argv));
     if (!args.pfbwt_only)
-        run_parser(args); // scan file and save relevant info to disk
+        args.n = run_parser(args); // scan file and save relevant info to disk
     if (args.parse_only) return 0;
     if (args.mmap) {
         fprintf(stderr, "workspace will be contained on disk (mmap)\n");

@@ -63,7 +63,8 @@ struct Parser {
     // encountered (ie., the phrases' position within the text).
     // We might consider writing the UIntType to file instead in the case that
     // the number of phrases is huge.
-    void parse_fasta() {
+    size_t parse_fasta() {
+        size_t n = 0;
         if (params.get_sai) {
             sai.clear();
             // TODO: figure out how to check if file is gzipped and prevent this
@@ -104,7 +105,7 @@ struct Parser {
                 doc_names.push_back(seq->name.s);
             }
             if (params.print_docs) {
-                fprintf(docs_fp, "%s\t%lu\n", seq->name.s, pos);
+                fprintf(docs_fp, "%s\t%lu\n", seq->name.s, static_cast<uint64_t>(pos));
             }
 #if !M64
             if (total_l + l > 0xFFFFFFFF) {
@@ -144,6 +145,7 @@ struct Parser {
                     }
                     phrase.erase(0, phrase.size()-params.w);
                 }
+                ++n;
                 ++pos;
                 pc = c;
             }
@@ -161,7 +163,7 @@ struct Parser {
         if (params.print_docs) fclose(docs_fp);
         kseq_destroy(seq);
         gzclose(fp);
-        return;
+        return n;
     }
 
     // assigns lexicographic rankings to items in dictionary

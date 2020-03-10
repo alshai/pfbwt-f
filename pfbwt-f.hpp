@@ -33,12 +33,13 @@ bool SuffixT::operator<(SuffixT& r) {
 enum class RunType {OTHER, START, END};
 enum class Difficulty {EASY1, EASY2, HARD};
 
-struct sa_fn_arg {
-    sa_fn_arg(uint_t p, uint_t s, RunType r = RunType::OTHER, Difficulty d = Difficulty::EASY1) :
-        pos(p), sa(s), run_t(r), dif(d) {}
+struct out_fn_arg {
+    out_fn_arg(uint_t p, uint_t s, uint8_t pc, uint8_t c, Difficulty d = Difficulty::EASY1) :
+        pos(p), sa(s), pbwtc(pc), bwtc(c), dif(d) {}
     uint_t pos;
     uint_t sa;
-    RunType run_t;
+    uint8_t pbwtc;
+    uint8_t bwtc;
     Difficulty dif;
 };
 
@@ -48,7 +49,6 @@ struct PrefixFreeBWTParams {
     bool sa = false;
     bool rssa = false;
     bool da = false;
-    bool ma = false;
     bool verb = false;
 };
 
@@ -68,15 +68,15 @@ class PrefixFreeBWT {
         dict ( WriteConType<uint8_t>(args.prefix + "." + EXTDICT)),
         bwlast ( ReadConType<uint8_t>(args.prefix + "." + EXTBWLST)),
         ilist ( ReadConType<UIntType>(args.prefix + "." + EXTILIST)),
-        build_sa(args.sa), build_rssa(args.rssa), build_ma(args.ma),
-        any_sa(args.sa | args.rssa | args.ma),
+        build_sa(args.sa), build_rssa(args.rssa),
+        any_sa(args.sa | args.rssa),
         verbose(args.verb)
     {
         if (verbose) fprintf(stderr, "loaded files\n");
-        if (args.sa && args.rssa) die("cannot activate both SA and sampled-SA options!");
+        // if (args.sa && args.rssa) die("cannot activate both SA and sampled-SA options!");
         dsize = dict.size();
         if (verbose) fprintf(stderr, "creating ilist idx\n");
-        if (args.sa && args.rssa) die("cannot activate both SA and sampled-SA options!");
+        // if (args.sa && args.rssa) die("cannot activate both SA and sampled-SA options!");
         load_ilist_idx(args.prefix);
         if (args.sa || args.rssa) bwsai = ReadConType<UIntType>(args.prefix + "." + EXTBWSAI);
     }
@@ -85,34 +85,25 @@ class PrefixFreeBWT {
     d = dict_idx.rank(i); \
     s = d>=dwords ? dsize-i : dict_idx.select(d+1) - i;
 
-#define UPDATE_SA(bwtc, bwtp, d) \
+#define UPDATE_SA(pbwtc, bwtc, bwtp, d) \
     sa = bwtp - suff_len; \
-    if (build_sa) { \
-        sa_fn(sa_fn_arg(pos, sa)); \
-    } else if (build_rssa && bwtc != pbwtc) { \
-        sa_fn(sa_fn_arg(pos,   sa,  RunType::START, d)); \
-        sa_fn(sa_fn_arg(pos-1, psa, RunType::END,   d)); \
-    } \
-    psa = sa;
+    out_fn(out_fn_arg(pos, sa, pbwtc, bwtc, d)); \
 
-#define UPDATE_BWT(bwtc) \
-    bwt_fn(bwtc); \
-    pbwtc = bwtc;
+#define UPDATE_BWT(pbwtc, bwtc, d) \
+    out_fn(out_fn_arg(0,0,pbwtc,bwtc, d));
 
      /* uses LCP of dict to build BWT (less memory, more time)
      */
-    template<typename BFn, typename SFn, typename AuxFn>
-    void generate_bwt_lcp(BFn bwt_fn, 
-                          SFn sa_fn = [](UIntType m, UIntType a){}, 
-                          AuxFn aux_fn = [](UIntType m, UIntType a){}) {
+    template<typename Fn>
+    void generate_bwt_lcp(Fn out_fn) {
         if (verbose) fprintf(stderr, "generating dict suffixes\n");
         sort_dict_suffixes(true); // build gSA and gLCP of dict
         // start from SA item that's not EndOfWord or EndOfDict
         size_t next, suff_len, wordi;
-        uint8_t bwtc, pbwtc = 0;
+        uint8_t pbwtc=0, bwtc;
         uint64_t easy_cases = 0, hard_cases = 0;
         size_t pos = 0;
-        UIntType sa = 0, psa = 1;
+        UIntType sa = 0;
         if (verbose) fprintf(stderr, "processing words to build BWT\n");
         std::vector<uint8_t> chars;
         std::vector<uint64_t> words;
@@ -128,24 +119,11 @@ class PrefixFreeBWT {
                 for (auto j: word_ilist) {
                     bwtc = bwlast[j];
                     if (any_sa) {
-                        if (wordi > 0) {
-                            UPDATE_SA(bwtc, bwsai[j], Difficulty::EASY1);
-                        } else if (build_rssa) { // wordi == 0
-                            sa = bwsai[0] - this->w;
-                            sa_fn(sa_fn_arg(pos, sa, RunType::START, Difficulty::EASY1));
-                            psa = sa; // save current sa 
-                        }
-                        if (build_ma) {
-                            auto marker_pair = markers[sa];
-                            aux_fn(std::get<0>(marker_pair), std::get<0>(marker_pair));
-                        }
-                        /*
-                        if (update_da) {
-                            UPDATE_DA(sa);
-                        }
-                        */
+                        UPDATE_SA(pbwtc, bwtc, bwsai[j], Difficulty::EASY1);
+                    } else {
+                        UPDATE_BWT(pbwtc, bwtc, Difficulty::EASY1);
                     }
-                    UPDATE_BWT(bwtc);
+                    pbwtc = bwtc;
                     ++pos;
                     ++easy_cases;
                 }
@@ -171,14 +149,11 @@ class PrefixFreeBWT {
                     for (auto word: words)  {
                         for (auto k: get_word_ilist(word, word_ilist)) {
                             if (any_sa) {
-                                UPDATE_SA(chars[0], bwsai[k], Difficulty::EASY2);
+                                UPDATE_SA(pbwtc, chars[0], bwsai[k], Difficulty::EASY2);
+                            } else {
+                                UPDATE_BWT(pbwtc, chars[0], Difficulty::EASY2);
                             }
-                            /*
-                            if (update_da) {
-                                UPDATE_DA(sa);
-                            }
-                            */
-                            UPDATE_BWT(chars[0]);
+                            pbwtc = chars[0];
                             ++pos;
                             ++easy_cases;
                         }
@@ -196,14 +171,11 @@ class PrefixFreeBWT {
                     std::sort(suffs.begin(), suffs.end());
                     for (auto s: suffs) {
                         if (any_sa) {
-                            UPDATE_SA(s.bwtc, bwsai[s.bwtp], Difficulty::HARD);
+                            UPDATE_SA(pbwtc, s.bwtc, bwsai[s.bwtp], Difficulty::HARD);
+                        } else {
+                            UPDATE_BWT(pbwtc, s.bwtc, Difficulty::HARD);
                         }
-                        /*
-                        if (update_da) {
-                            UPDATE_DA(sa);
-                        }
-                        */
-                        UPDATE_BWT(s.bwtc);
+                        pbwtc = s.bwtc;
                         ++pos;
                         ++hard_cases;
                     }
@@ -214,8 +186,6 @@ class PrefixFreeBWT {
                 next = j;
             }
         }
-        if (build_rssa)
-            sa_fn(sa_fn_arg(pos-1, psa, RunType::END, Difficulty::EASY1));
         fprintf(stderr, "# easy cases: %lu, # hard cases: %lu\n", easy_cases, hard_cases);
         return;
     }
@@ -265,10 +235,6 @@ class PrefixFreeBWT {
         ilist_idx.init_rs();
     }
 
-    void load_marker_array(std::string fname) {
-        
-    }
-
     size_t get_ilist_size(size_t wordi) const {
         auto startpos = wordi ? ilist_idx.select(wordi) + 1 : 0;
         auto endpos = wordi >= dwords ? ilist.size()-1 : ilist_idx.select(wordi+1);
@@ -311,10 +277,8 @@ class PrefixFreeBWT {
     WriteConType<IntType> glcp; // gLCP of dict words
     bv_rs<> ilist_idx; // bitvec w/ 1 on ends of dict word occs in ilist
     bv_rs<> dict_idx; // bitvec w/ 1 on word end positions in dict
-    MarkerArray<UIntType> markers;
     bool build_sa = false;
     bool build_rssa = false;
-    bool build_ma = false;
     bool any_sa = false;
     bool verbose = false;
 };
