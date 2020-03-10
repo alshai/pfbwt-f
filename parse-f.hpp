@@ -261,6 +261,9 @@ struct Parser {
         size_t n; // size of parse_ranks, minus the last EOS character
         // TODO: support large parse sizes
         if (!parse_ranks.size()) generate_parse_ranks();
+        if (parse_ranks.size() == 1) {
+            die("error: only one dict word total. Re-run with a smaller p modulus");
+        }
 #if !M64
         // if in 32 bit mode, the number of words is at most 2^31-2
         if(parse_ranks.size() > 0x7FFFFFFE) {
