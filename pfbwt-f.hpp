@@ -48,7 +48,6 @@ struct PrefixFreeBWTParams {
     size_t w;
     bool sa = false;
     bool rssa = false;
-    bool da = false;
     bool verb = false;
 };
 

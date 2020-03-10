@@ -21,7 +21,6 @@ struct Args {
     size_t p = 100;
     int sa = 0;
     int rssa = 0;
-    int da = 0;
     int mmap = 0;
     int parse_only = 0;
     int trim_non_acgt = 0;
@@ -115,7 +114,6 @@ Args parse_args(int argc, char** argv) {
         {"verbose", no_argument, &args.verbose, 1},
         {"sa", no_argument, NULL, 's'},
         {"rssa", no_argument, NULL, 'r'},
-        {"da", no_argument, NULL, 'd'},
         {"mmap", no_argument, NULL, 'm'},
         {"output", required_argument, NULL, 'o'},
         {"window-size", required_argument, NULL, 'w'},
@@ -130,8 +128,6 @@ Args parse_args(int argc, char** argv) {
                 args.sa = 1; break;
             case 'r':
                 args.rssa = 1; break;
-            case 'd':
-                args.da = 1; break;
             case 'w':
                 args.w = atoi(optarg); break;
             case 'm':
@@ -210,11 +206,10 @@ pfbwtf::ParserParams args_to_parser_params(Args args) {
     p.w = args.w;
     p.p = args.p;
     p.get_sai = args.sa || args.rssa;
-    p.get_da = args.da;
     p.verbose = args.verbose;
     p.trim_non_acgt = args.trim_non_acgt;
     p.non_acgt_to_a = args.non_acgt_to_a;
-    p.print_docs = args.print_docs;
+    p.store_docs = args.print_docs;
     return p;
 }
 
@@ -225,7 +220,6 @@ pfbwtf::PrefixFreeBWTParams args_to_pfbwt_params(Args args) {
     p.w = args.w;
     p.sa = args.sa;
     p.rssa  = args.rssa;
-    p.da = args.da;
     p.verb = args.verbose;
     return p;
 }
@@ -276,11 +270,14 @@ size_t run_parser(Args args) {
         const auto& parse_ranks = p.get_parse_ranks();
         vec_to_file(parse_ranks, p.get_parse_size(), args.output + "." + EXTPARSE);
     }
-    if (args.da) {
-        const auto& doc_starts = p.get_doc_starts();
-        vec_to_file(doc_starts, args.output + ".dstarts");
+    if (args.print_docs) {
+        std::FILE* doc_fp = open_aux_file(args.output.data(), "doc", "w");
         const auto& doc_names = p.get_doc_names();
-        vec_to_file(doc_names, args.output + ".dnames");
+        const auto& doc_starts = p.get_doc_starts();
+        for (size_t i = 0; i < doc_starts.size(); ++i) {
+            fprintf(doc_fp, "%s %lu\n", doc_names[i].data(), static_cast<uint64_t>(doc_starts[i]));
+        }
+        fclose(doc_fp);
     }
     // TODO: dump ntab to file if applicable.
     if (args.trim_non_acgt) {

@@ -288,15 +288,16 @@ if __name__ == "__main__":
     parser.add_argument("--save_fasta", action='store_true', default=False)
     parser.add_argument("--save_sa", "-s", action='store_true', default=False)
     parser.add_argument("--save_rssa", "-r", action='store_true')
+    parser.add_argument("--save_docs", "-d", action='store_true')
     parser.add_argument("-w", default="10")
     parser.add_argument("-p", default="100")
     args = parser.parse_args()
 
     # sanity check arguments
     if args.bytes == 8:
-        exe = "./pfbwt-f64"
+        exe = "pfbwt-f64"
     elif args.bytes == 4:
-        exe == "./pfbwt-f"
+        exe == "pfbwt-f"
     else:
         die("--bytes can only be 4 or 8!") # redundant
     if args.out:
@@ -305,9 +306,13 @@ if __name__ == "__main__":
         out = args.fasta
 
     # feed haplotypes into parsinng step
-    parse_cmd = [exe, "--parse-only", "-o", args.out, "-s", "-w", args.w, "-p", args.p]
+    parse_cmd = [exe, "--parse-only", "-o", out, "-s", "-w", args.w, "-p", args.p]
+    if args.save_rssa:
+        parse_cmd.append("-r")
+    if args.save_docs:
+        parse_cmd.append("--print-docs")
+    sys.stderr.write("running: " +  ' '.join(list(map(str, parse_cmd))) + "\n")
     err1 = open("{}.parse.err".format(out), "w")
-    err1.write("running: {}\n".format(' '.join(parse_cmd)))
     with subprocess.Popen(parse_cmd, stdin=subprocess.PIPE, stderr=err1) as p:
         for s in vcf_to_fasta_markers(VCFToFastaMarkersArgs(args)):
             p.stdin.write(s)
@@ -318,11 +323,14 @@ if __name__ == "__main__":
         err1.close()
 
     # build the BWT and generate marker array
-    pfbwt_cmd = [exe, "--pfbwt-only", "-o", args.out, "-s", "--stdout", "sa", "-w", args.w, "-p", args.p]
+    pfbwt_cmd = [exe, "--pfbwt-only", "-o", out, "-s", "--stdout", "sa", "-w", args.w, "-p", args.p]
     if args.save_rssa:
         pfbwt_cmd.append("-r")
+    if args.save_docs:
+        pfbwt_cmd.append("--print-docs")
+    pfbwt_cmd.append(out)
+    sys.stderr.write("running: " +  ' '.join(list(map(str, pfbwt_cmd))) + "\n")
     err2 = open("{}.pfbwt.err".format(out), "w")
-    err2.write("running: {}\n".format(' '.join(pfbwt_cmd)))
     with subprocess.Popen(pfbwt_cmd, stderr=err2, stdout=subprocess.PIPE) as p:
         marker_array(MarkerArrayArgs(args, p.stdout, err2))
         if p.wait():

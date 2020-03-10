@@ -25,12 +25,11 @@ struct ParserParams {
     size_t w = 10;
     size_t p = 100;
     bool get_sai = false;
-    bool get_da = false;
+    bool store_docs = false;
     bool verbose = false;
     // if bothm trim_non_acgt and non_acgt_to_a are set, trim_non_acgt takes precedence
     bool trim_non_acgt = false;
     bool non_acgt_to_a = false;
-    bool print_docs = false;
 };
 
 template<typename T>
@@ -72,7 +71,7 @@ struct Parser {
                 sai.reserve(get_file_size(params.fname.data())+1);
             }
         }
-        if (params.get_da) {
+        if (params.store_docs) {
             doc_starts.clear();
             doc_names.clear();
         }
@@ -83,10 +82,6 @@ struct Parser {
             fp = gzopen(params.fname.data(), "r");
         }
         if (fp == NULL) die("failed to open file!\n");
-        std::FILE* docs_fp = NULL;
-        if (params.print_docs) {
-            docs_fp = open_aux_file(params.fname.data(), "docs", "w");
-        }
         kseq_t* seq = kseq_init(fp);
         int l;
         uint64_t nseqs(0);
@@ -100,12 +95,9 @@ struct Parser {
         phrase.append(1, Dollar);
         Hasher hf(params.w);
         while (( l = kseq_read(seq) ) >= 0) {
-            if (params.get_da) {
+            if (params.store_docs) {
                 doc_starts.push_back(pos);
                 doc_names.push_back(seq->name.s);
-            }
-            if (params.print_docs) {
-                fprintf(docs_fp, "%s\t%lu\n", seq->name.s, static_cast<uint64_t>(pos));
             }
 #if !M64
             if (total_l + l > 0xFFFFFFFF) {
@@ -160,7 +152,6 @@ struct Parser {
         if (params.get_sai) {
             sai.push_back(pos + params.w);
         }
-        if (params.print_docs) fclose(docs_fp);
         kseq_destroy(seq);
         gzclose(fp);
         return n;
