@@ -271,7 +271,7 @@ size_t run_parser(Args args) {
         vec_to_file(parse_ranks, p.get_parse_size(), args.output + "." + EXTPARSE);
     }
     if (args.print_docs) {
-        std::FILE* doc_fp = open_aux_file(args.output.data(), "doc", "w");
+        std::FILE* doc_fp = open_aux_file(args.output.data(), "docs", "w");
         const auto& doc_names = p.get_doc_names();
         const auto& doc_starts = p.get_doc_starts();
         for (size_t i = 0; i < doc_starts.size(); ++i) {
