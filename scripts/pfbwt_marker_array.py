@@ -1,3 +1,5 @@
+#!/bin/env python3
+
 from cyvcf2 import VCF
 import argparse
 from Bio import SeqIO
@@ -21,9 +23,9 @@ and store the marker array.
 
 The Marker Array (MA) is an auxillary structure to the Suffix Array, much like
 the Document Array.  It stores, for each variant contained in each of the
-haplotypes, its corresponding position in the reference sequence. 
+haplotypes, its corresponding position in the reference sequence.
 For example, if SA[i] lies at a SNP in some haplotype, MA[i] contains the
-position in the reference sequence of that SNP. 
+position in the reference sequence of that SNP.
 
 Technically, the marker array is the same length as the SA, but since these
 data structures can end up being very large, we only store marker values at
@@ -145,16 +147,20 @@ def vcf_to_fasta_markers(args):
     if args.save_fasta:
         fasta_out = open(args.out + ".from_vcf.fa", "w")
     marker_out = open(args.out + ".markers", "wb")
-    # TODO: check if vcf is sorted and indexed
+    # First, feed the reference sequence to the thing:
+    for name, seq, qual in readfq(fasta_in):
+        to_write = ">{}\n{}\n".format(name, seq)
+        if args.save_fasta:
+            fasta_out.write(to_write)
+        yield to_write.encode()
+    fasta_in.seek(0)
+    # Then feed in each haplotype
     for sample in samples:
         for i in range(2): # process two haplotypes
             for name, seq, qual in readfq(fasta_in):
             # for fasta_record in SeqIO.parse(fasta_in, "fasta"):
                 prec_end = 0
                 prec_start = 0
-                # seq = fasta_record.seq
-                # contig = fasta_record.name
-                # to_write = ">{}.{}.{}\n".format(sample, i+1, contig)
                 to_write = ">{}.{}.{}\n".format(sample, i+1, name)
                 if args.save_fasta:
                     fasta_out.write(to_write)
