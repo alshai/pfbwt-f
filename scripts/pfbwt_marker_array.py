@@ -279,6 +279,11 @@ def marker_array(args):
     if args.save_sa:
         sa_out.close()
 
+def ma_from_sa(args):
+    sa_fp = open(args.fasta + ".sa", "rb")
+    err_fp = open(args.fasta + ".pfbwt.err", "w")
+    args.save_sa = False
+    marker_array(MarkerArrayArgs(args, sa_fp, err_fp))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -294,6 +299,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_sa", "-s", action='store_true', default=False)
     parser.add_argument("--save_rssa", "-r", action='store_true')
     parser.add_argument("--save_docs", "-d", action='store_true')
+    parser.add_argument("--from_sa", default=False, action='store_true')
     parser.add_argument("-w", default="10")
     parser.add_argument("-p", default="100")
     args = parser.parse_args()
@@ -309,6 +315,10 @@ if __name__ == "__main__":
         out = args.out
     else:
         out = args.fasta
+
+    if args.from_sa:
+        ma_from_sa(args)
+        exit(0)
 
     # feed haplotypes into parsinng step
     parse_cmd = [exe, "--parse-only", "-o", out, "-s", "-w", args.w, "-p", args.p]
