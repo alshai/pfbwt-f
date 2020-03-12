@@ -352,8 +352,9 @@ void run_pfbwt(const Args args) {
                     fwrite(&i, sizeof(i), 1, ssa_fp);
                     fwrite(&x, sizeof(x), 1, ssa_fp);
                     if (i) {
+                        typename pfbwt_t::UIntType y = pi ? psa : n;
                         fwrite(&pi, sizeof(pi), 1, esa_fp);
-                        fwrite(&psa, sizeof(psa), 1, esa_fp);
+                        fwrite(&y, sizeof(y), 1, esa_fp);
                     }
                 }
             }
