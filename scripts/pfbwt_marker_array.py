@@ -208,6 +208,13 @@ def vcf_to_fasta_markers(args):
     fasta_in.close()
 
 
+def read_int_bytes(fp, nbytes=8, endian="little"):
+    bytestr = fp.read(nbytes)
+    while bytestr:
+        yield int.from_bytes(bytestr, endian)
+        bytestr = fp.read(nbytes)
+
+
 class MarkerArrayArgs:
     def __init__(self, args, sa_fp, err_fp):
         self.bytes = args.bytes
@@ -222,26 +229,28 @@ class MarkerArrayArgs:
 
 
 # TODO add support for 2+ alt alleles
-def markers_to_sparse(f, nbytes=8, endian="little"):
+def markers_to_sparse(fname, nbytes=8, endian="little"):
     if nbytes == 8:
         dtype='uint64'
     elif nbytes == 4:
         dtype='uint32'
-    f.seek(0,2)
-    fsize = f.tell()
-    if (fsize % nbytes) or (fsize % 2):
-        sys.stderr.write("invalid file ({} bytes)!\n".format(fsize))
-        exit(1)
-    f.seek(0,0)
-    marr = np.ndarray((int(fsize / nbytes / 2), 2), dtype=dtype)
-    bytestr = f.read(nbytes)
-    i=0
-    while bytestr:
-        x = int.from_bytes(bytestr, endian)
-        marr[int(i/2), i % 2] = x
-        bytestr = f.read(nbytes)
-        i += 1
+    marr = np.fromfile(fname, dtype=dtype)
+    if marr.shape[0] % 2:
+        sys.stderr("invalid file: {}\n".format(fname))
+    marr.shape = (int(marr.shape[0]/2), 2)
     return sparse.dok_matrix(sparse.coo_matrix((marr[:,1], (marr[:,0], np.zeros((marr.shape[0]), dtype=dtype)))))
+
+def markers_to_dict(fname, nbytes=8, endian="little"):
+    mdict = {}
+    i = 0
+    x = 0
+    for m in read_int_bytes(open(fname, "rb"), nbytes, endian):
+        if i % 2:
+            mdict[x] = m
+        else:
+            x = m
+        i += 1
+    return mdict
 
 
 """
@@ -257,23 +266,18 @@ def marker_array(args):
     nbytes = args.bytes
     endian = args.endian
     sa_in = args.sa_fp
-    # read markers and save to dok_matrix
-    with open(args.out + ".markers", "rb") as fp:
-        marr = markers_to_sparse(fp, nbytes, endian)
+    mdict = markers_to_dict(args.out + ".markers", nbytes, endian)
     if args.save_sa:
         sa_out = open(args.out + ".sa", "wb")
     ma_out = open(args.out + ".ma", "wb")
-    bytestr = sa_in.read(nbytes)
-    while bytestr:
-        s = int.from_bytes(bytestr, endian)
+    for s in read_int_bytes(sa_in, nbytes, endian):
         if args.save_sa:
             sa_out.write(bytestr)
-        if s < marr.shape[0]:
-            marker = marr[s,0]
+        if s in mdict:
+            marker = mdict[s]
             if marker:
                 ma_out.write(i.to_bytes(nbytes, endian))
-                ma_out.write(marker.tobytes())
-        bytestr = sa_in.read(nbytes)
+                ma_out.write(marker.to_bytes(nbytes, endian))
         i += 1
     ma_out.close()
     if args.save_sa:
