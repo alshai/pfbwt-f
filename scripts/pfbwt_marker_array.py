@@ -78,7 +78,7 @@ def readfq(fp): # this is a generator function
                 leng += len(l) - 1
                 if leng >= len(seq): # have read enough quality
                     last = None
-                    yield name, seq, ''.join(seqs); # yield a fastq record
+                    yield name, seq, ''.join(seqs) # yield a fastq record
                     break
             if last: # reach EOF before reading enough quality
                 yield name, seq, None # yield a fasta record instead
@@ -149,6 +149,7 @@ def vcf_to_fasta_markers(args):
     marker_out = open(args.out + ".markers", "wb")
     # First, feed the reference sequence to the thing:
     for name, seq, qual in readfq(fasta_in):
+        pos += len(seq)
         to_write = ">{}\n{}\n".format(name, seq)
         if args.save_fasta:
             fasta_out.write(to_write)
@@ -158,7 +159,6 @@ def vcf_to_fasta_markers(args):
     for sample in samples:
         for i in range(2): # process two haplotypes
             for name, seq, qual in readfq(fasta_in):
-            # for fasta_record in SeqIO.parse(fasta_in, "fasta"):
                 prec_end = 0
                 prec_start = 0
                 to_write = ">{}.{}.{}\n".format(sample, i+1, name)
@@ -257,7 +257,6 @@ def marker_array(args):
     nbytes = args.bytes
     endian = args.endian
     sa_in = args.sa_fp
-    err_out = args.err_fp
     # read markers and save to dok_matrix
     with open(args.out + ".markers", "rb") as fp:
         marr = markers_to_sparse(fp, nbytes, endian)
@@ -291,7 +290,7 @@ if __name__ == "__main__":
     parser.add_argument("--out", "-o", help="output prefix (<fasta> by default)")
     parser.add_argument("--endian", default="little", choices=["big", "little"])
     parser.add_argument("--bytes", type=int, default=8, choices=[4,8])
-    parser.add_argument("--save_fasta", action='store_true', default=False)
+    parser.add_argument("--save_fasta", "-f", action='store_true', default=False)
     parser.add_argument("--save_sa", "-s", action='store_true', default=False)
     parser.add_argument("--save_rssa", "-r", action='store_true')
     parser.add_argument("--save_docs", "-d", action='store_true')
