@@ -9,7 +9,7 @@
 #include <fcntl.h>
 #include "sdsl/bit_vectors.hpp"
 #include "sdsl_bv_wrappers.hpp"
-#include "sa_aux.hpp"
+// #include "sa_aux.hpp"
 extern "C" {
 #include <sys/mman.h>
 #include "utils.h"

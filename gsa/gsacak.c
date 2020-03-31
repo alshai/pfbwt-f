@@ -1,5 +1,7 @@
 #include "gsacak.h"
 
+#define max(a,b) ((a) > (b) ? (a) : (b))
+
 // set only the highest bit as 1, i.e. 1000...
 //const unsigned int EMPTY_k=((unsigned int)1)<<(sizeof(unsigned int)*8-1); 
 const uint_t EMPTY_k=((uint_t)1)<<(sizeof(uint_t)*8-1); 

@@ -11,11 +11,12 @@
 #include <cassert>
 #include <zlib.h>
 #include <sdsl/int_vector.hpp>
-#include "kseq.h"
+#include "hash.hpp"
 extern "C" {
-KSEQ_INIT(gzFile, gzread);
 #include "utils.h"
 #include "gsa/gsacak.h"
+#include "kseq.h"
+KSEQ_INIT(gzFile, gzread);
 }
 
 namespace pfbwtf {
@@ -47,7 +48,7 @@ struct ntab_entry {
     }
 };
 
-template <typename Hasher>
+template <typename Hasher=WangHash>
 struct Parser {
 
     public:
