@@ -76,8 +76,8 @@ struct Parser {
 #endif
         char c('A'), pc('A');
         ntab_entry ne;
-        std::string phrase;
-        phrase.append(1, Dollar);
+        std::string phrase(last_phrase);
+        if (!pos_) phrase.append(1, Dollar);
         Hasher hf(params_.w);
         while (( l = kseq_read(seq) ) >= 0) {
             if (params_.store_docs) {
@@ -91,8 +91,11 @@ struct Parser {
             }
             total_l += l;
 #endif
-            for (size_t i = 0; i < seq->seq.l; ++i) {
-                c = std::toupper(seq->seq.s[i]);
+            // loop through incoming sequence, and add `w` extra 'A's to
+            // sequence so we can add additional sequences later
+            for (size_t i = 0; i < seq->seq.l + params_.w; ++i) {
+                // this if-else ensures `w` As will be appended to end of seq
+                c = i < seq->seq.l ? std::toupper(seq->seq.s[i]) : 'A';
                 if (params_.trim_non_acgt) {
                     char x = seq_nt4_table[static_cast<size_t>(pc)];
                     char y = seq_nt4_table[static_cast<size_t>(c)];
@@ -131,8 +134,9 @@ struct Parser {
             }
             ++nseqs;
         }
-        phrase.append(params_.w, Dollar);
-        process_phrase(phrase);
+        last_phrase = phrase;
+        // phrase.append(params_.w, Dollar);
+        // process_phrase(phrase);
         if (params_.get_sai) {
             sai.push_back(pos_ + params_.w);
         }
@@ -283,6 +287,8 @@ struct Parser {
     // call when done processing all files
     void finalize() {
         // TODO: add final w Dollars to the parse
+        last_phrase.append(params_.w, Dollar);
+        process_phrase(last_phrase);
         sorted_phrases_.clear();
         sorted_phrases_.reserve(freqs.size());
         for (auto it = freqs.begin(); it != freqs.end(); ++it) {
@@ -324,6 +330,7 @@ struct Parser {
     std::vector<ntab_entry> ntab_;
     ParserParams params_;
     UIntType pos_ = 0;
+    std::string last_phrase = "";
 };
 }; // namespace end
 
