@@ -202,7 +202,6 @@ void vec_to_file(const std::vector<T>& vec, size_t nelems, std::string fname) {
 
 pfbwtf::ParserParams args_to_parser_params(Args args) {
     pfbwtf::ParserParams p;
-    p.fname = args.in_fname;
     p.w = args.w;
     p.p = args.p;
     p.get_sai = args.sa || args.rssa;
@@ -232,43 +231,37 @@ size_t run_parser(Args args) {
     pfbwtf::ParserParams params(args_to_parser_params(args));
     parse_t p(params);
     fprintf(stderr, "starting...\n");
-    {
-        Timer t("TASK\tParsing\t");
-        n = p.parse_fasta();
+    { // TODO: add option for more fasta files
+        Timer t("TASK\tparsing input\t");
+        n = p.add_fasta(args.in_fname);
     }
     {
-        Timer t("TASK\tsorting dict, calculating occs, dumping to file\t");
+        Timer t("TASK\tfinalizing parse, writing dict and occs\t");
+        p.finalize();
         FILE* dict_fp = open_aux_file(args.output.data(), EXTDICT, "wb");
-        FILE* occ_fp  = open_aux_file(args.output.data(), EXTOCC, "wb");
-        p.update_dict([&](const char* phrase, parse_t::UIntType freq) {
-                if (fwrite(phrase, 1, strlen(phrase), dict_fp) != strlen(phrase))
+        std::vector<const char*> dict = p.get_sorted_dict();
+        for (auto phrase: dict) {
+            if (fwrite(phrase, 1, strlen(phrase), dict_fp) != strlen(phrase))
                 die("Error writing to DICT file\n");
-                if (fputc(EndOfWord, dict_fp) == EOF)
+            if (fputc(EndOfWord, dict_fp) == EOF)
                 die("Error writing EndOfWord to DICT file");
-                if (fwrite(&freq, sizeof(freq), 1, occ_fp) != 1)
-                die("Error writing to OCC file\n");
-                }
-        );
+        }
         if (fputc(EndOfDict, dict_fp) == EOF) die("Error writing EndOfDict to DICT file");
         if (fclose(dict_fp)) die("Error closing DICT file");
         else fprintf(stderr, "DICT written to %s.%s\n", args.output.data(), EXTDICT);
-        if (fclose(occ_fp)) die("Error closing OCC file");
-        else fprintf(stderr, "OCC written to %s.%s\n", args.output.data(), EXTOCC);
+        vec_to_file(p.get_occs(), args.output + "." + EXTOCC);
+        vec_to_file(p.get_parse_ranks(), p.get_parse_size(), args.output + "." + EXTPARSE);
     }
     {
         Timer t("TASK\tranking and bwt-ing parse and processing last-chars\t");
         p.bwt_of_parse(
-                [&](const std::vector<char>& bwlast, const std::vector<parse_t::UIntType>& ilist, const std::vector<parse_t::UIntType>& bwsai) {
+                [&](const std::vector<char>& bwlast, 
+                    const std::vector<parse_t::UIntType>& ilist, 
+                    const std::vector<parse_t::UIntType>& bwsai) {
                     vec_to_file<char>(bwlast, args.output + "." + EXTBWLST);
                     vec_to_file<parse_t::UIntType>(ilist, args.output + "." + EXTILIST);
                     if (args.sa || args.rssa) vec_to_file<parse_t::UIntType>(bwsai, args.output + "." + EXTBWSAI);
-                    // TODO: should we do DA stuff here too?
                 });
-    }
-    {
-        Timer t("TASK\tdumping files needed by pfbwt\t");
-        const auto& parse_ranks = p.get_parse_ranks();
-        vec_to_file(parse_ranks, p.get_parse_size(), args.output + "." + EXTPARSE);
     }
     if (args.print_docs) {
         std::FILE* doc_fp = open_aux_file(args.output.data(), "docs", "w");

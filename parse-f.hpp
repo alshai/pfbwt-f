@@ -22,7 +22,6 @@ KSEQ_INIT(gzFile, gzread);
 namespace pfbwtf {
 
 struct ParserParams {
-    std::string fname;
     size_t w = 10;
     size_t p = 100;
     bool get_sai = false;
@@ -54,33 +53,19 @@ struct Parser {
     public:
 
     using UIntType = uint_t;
+    using FreqMap = std::map<std::string, Freq<UIntType>>;
 
-    Parser(ParserParams p) : params(p) {
+    Parser(ParserParams p) : params_(p) {
         check_w(p.w);
     }
 
-    // if get_sai is true, then an UIntType is stored for every phrase
-    // encountered (ie., the phrases' position within the text).
-    // We might consider writing the UIntType to file instead in the case that
-    // the number of phrases is huge.
-    size_t parse_fasta() {
-        size_t n = 0;
-        if (params.get_sai) {
-            sai.clear();
-            // TODO: figure out how to check if file is gzipped and prevent this
-            if (params.fname != "-") {
-                sai.reserve(get_file_size(params.fname.data())+1);
-            }
-        }
-        if (params.store_docs) {
-            doc_starts.clear();
-            doc_names.clear();
-        }
+    // stores parse information from a fasta file
+    size_t add_fasta(std::string fasta_fname) {
         gzFile fp;
-        if (params.fname == "-") {
+        if (fasta_fname == "-") {
             fp = gzdopen(fileno(stdin), "r");
         } else {
-            fp = gzopen(params.fname.data(), "r");
+            fp = gzopen(fasta_fname.data(), "r");
         }
         if (fp == NULL) die("failed to open file!\n");
         kseq_t* seq = kseq_init(fp);
@@ -89,16 +74,15 @@ struct Parser {
 #if !M64
         uint64_t total_l(0);
 #endif
-        UIntType pos(0);
         char c('A'), pc('A');
         ntab_entry ne;
         std::string phrase;
         phrase.append(1, Dollar);
-        Hasher hf(params.w);
+        Hasher hf(params_.w);
         while (( l = kseq_read(seq) ) >= 0) {
-            if (params.store_docs) {
-                doc_starts.push_back(pos);
-                doc_names.push_back(seq->name.s);
+            if (params_.store_docs) {
+                doc_starts_.push_back(pos_);
+                doc_names_.push_back(seq->name.s);
             }
 #if !M64
             if (total_l + l > 0xFFFFFFFF) {
@@ -109,13 +93,13 @@ struct Parser {
 #endif
             for (size_t i = 0; i < seq->seq.l; ++i) {
                 c = std::toupper(seq->seq.s[i]);
-                if (params.trim_non_acgt) {
+                if (params_.trim_non_acgt) {
                     char x = seq_nt4_table[static_cast<size_t>(pc)];
                     char y = seq_nt4_table[static_cast<size_t>(c)];
                     if (y > 3) { // skip if nonACGT
                         if (x < 4) { // new N run
                             ne.l = 1;
-                            ne.pos = pos-1;
+                            ne.pos = pos_-1;
                         } else {
                             ne.l += 1;
                         }
@@ -123,104 +107,38 @@ struct Parser {
                         continue; // make sure that rest of loop is skipped
                     }
                     if (y < 4 && x > 3) { // record if [^ACGT] run ended
-                        ntab.push_back(ne);
+                        ntab_.push_back(ne);
                         ne.clear();
                     }
-                } else if (params.non_acgt_to_a && seq_nt4_table[static_cast<size_t>(c)] > 3) {
+                } else if (params_.non_acgt_to_a && seq_nt4_table[static_cast<size_t>(c)] > 3) {
                     c = 'A';
                 }
                 phrase.append(1, c);
                 hf.update(c);
-                if (hf.hashvalue() % params.p == 0) {
+                if (hf.hashvalue() % params_.p == 0) {
                     process_phrase(phrase);
-                    if (params.get_sai) {
-                        sai.push_back(pos+1);
+                    if (params_.get_sai) {
+                        sai.push_back(pos_+1);
                     }
-                    phrase.erase(0, phrase.size()-params.w);
+                    phrase.erase(0, phrase.size()-params_.w);
                 }
-                ++n;
-                ++pos;
+                ++pos_;
                 pc = c;
             }
             // record last [^ACGT] run if applicable
-            if (params.trim_non_acgt && seq_nt4_table[static_cast<size_t>(c)] > 3) {
-                ntab.push_back(ne);
+            if (params_.trim_non_acgt && seq_nt4_table[static_cast<size_t>(c)] > 3) {
+                ntab_.push_back(ne);
             }
             ++nseqs;
         }
-        phrase.append(params.w, Dollar);
+        phrase.append(params_.w, Dollar);
         process_phrase(phrase);
-        if (params.get_sai) {
-            sai.push_back(pos + params.w);
+        if (params_.get_sai) {
+            sai.push_back(pos_ + params_.w);
         }
         kseq_destroy(seq);
         gzclose(fp);
-        return n;
-    }
-
-    // assigns lexicographic rankings to items in dictionary
-    // and creates occ array
-    template<typename DictFn>
-    void update_dict(DictFn dict_fn) {
-        std::vector<const char*> dict_phrases;
-        dict_phrases.reserve(freqs.size());
-        for (auto it = freqs.begin(); it != freqs.end(); ++it) {
-            dict_phrases.push_back(it->first.data());
-        }
-        std::sort(dict_phrases.begin(), dict_phrases.end(),
-                [](const char* l, const char* r) { return strcmp(l, r) <= 0; });
-        occs.clear();
-        occs.reserve(dict_phrases.size());
-        size_t rank = 1;
-        for (auto x: dict_phrases) {
-            // access dictionary and write occ to occ file
-            auto& wf = freqs.at(x);
-            wf.r = rank++;
-            occs.push_back(wf.n);
-            dict_fn(x, wf.n);
-        }
-    }
-
-    void generate_parse_ranks() {
-        if (!freqs.size()) {
-            fprintf(stderr, "dictionary not created yet! run update_dict");
-            exit(1);
-        }
-        clear_parse_ranks();
-        parse_ranks.reserve(parse.size());
-        occs.reserve(parse.size());
-        for (auto phrase: parse) {
-            auto wf = freqs.at(std::string(phrase));
-            parse_ranks.push_back(wf.r);
-        }
-        parse_size = parse_ranks.size();
-    }
-
-    void clear_dict() {
-        freqs.clear();
-    }
-
-    void clear_parse() {
-        parse.clear();
-    }
-
-    void clear_parse_ranks() {
-        parse_ranks.clear();
-    }
-
-    void clear_occ() {
-        occs.clear();
-    }
-
-    void clear_last() {
-        last.clear();
-    }
-
-    void clear() {
-        clear_dict();
-        clear_parse();
-        clear_parse_ranks();
-        clear_last();
+        return pos_;
     }
 
     void check_w(size_t x) {
@@ -228,23 +146,23 @@ struct Parser {
             fprintf(stderr, "window size w must be < 32!\n");
             exit(1);
         }
-        clear();
     }
 
     const std::vector<const char*>& get_parse() const {
-        return parse;
+        return parse_;
     }
 
     const std::vector<int_text>& get_parse_ranks() const {
-        if (!parse_ranks.size()) {
+        if (!parse_ranks_.size()) {
             die("parse ranks have not been generated!");
         }
-        return parse_ranks;
+        return parse_ranks_;
     }
 
     // generates bwlast and ilist (and bwsai)
     template<typename OutFn>
     void bwt_of_parse(OutFn out_fn) {
+        auto occs = get_occs();
         // these will get passed to out_fn at end
         std::vector<char> bwlast;
         std::vector<UIntType> ilist;
@@ -252,34 +170,34 @@ struct Parser {
 
         size_t n; // size of parse_ranks, minus the last EOS character
         // TODO: support large parse sizes
-        if (!parse_ranks.size()) generate_parse_ranks();
-        if (parse_ranks.size() == 1) {
+        if (!parse_ranks_.size()) get_parse_ranks();
+        if (parse_ranks_.size() == 1) {
             die("error: only one dict word total. Re-run with a smaller p modulus");
         }
 #if !M64
         // if in 32 bit mode, the number of words is at most 2^31-2
-        if(parse_ranks.size() > 0x7FFFFFFE) {
-            fprintf(stderr, "parse ranks size: %lu\n", parse_ranks.size());
+        if(parse_ranks_.size() > 0x7FFFFFFE) {
+            fprintf(stderr, "parse ranks size: %lu\n", parse_ranks_.size());
             die("Input containing more than 2^31-2 phrases! Please use 64 bit version");
         }
 #else
         // if in 64 bit mode, the number of words is at most 2^32-2 (for now)
-        if(parse_ranks.size() > 0xFFFFFFFEu) {
-            fprintf(stderr, "parse ranks size: %lu\n", parse_ranks.size());
+        if(parse_ranks_.size() > 0xFFFFFFFEu) {
+            fprintf(stderr, "parse ranks size: %lu\n", parse_ranks_.size());
             die("Input containing more than 2^32-2 phrases! This is currently a hard limit");
         }
 #endif
         // add EOS if it's not already there
-        if (parse_ranks[parse_ranks.size()-1]) {
-            n = parse_ranks.size();
-            parse_ranks.push_back(0);
-        } else n = parse_ranks.size() - 1;
+        if (parse_ranks_[parse_ranks_.size()-1]) {
+            n = parse_ranks_.size();
+            parse_ranks_.push_back(0);
+        } else n = parse_ranks_.size() - 1;
         // TODO: calculate k
         size_t k = 0;
         for (size_t i = 0; i < n; ++i) {
-            k = parse_ranks[i] > k ? parse_ranks[i] : k;
+            k = parse_ranks_[i] > k ? parse_ranks_[i] : k;
         }
-        if (params.get_sai) {
+        if (params_.get_sai) {
             bwsai.clear();
             bwsai.reserve(n);
         }
@@ -288,31 +206,31 @@ struct Parser {
         assert(sizeof(UIntType) >= sizeof(uint_t));
         std::vector<UIntType> SA(n+1, 0);
         // fprintf(stderr, "Computing S.A. of size %ld over an alphabet of size %ld\n",n+1,k+1);
-        int depth = sacak_int(parse_ranks.data(), SA.data(), n+1, k+1);
+        int depth = sacak_int(parse_ranks_.data(), SA.data(), n+1, k+1);
         if (depth < 0) die("Error computing SA");
         // if(depth>=0) fprintf(stderr, "S.A. computed with depth: %d\n", depth);
         // else die("Error computing the S.A.");
         // transform S.A. to BWT in place
         assert(SA[0] == n);
-        SA[0] = parse_ranks[n-1];
+        SA[0] = parse_ranks_[n-1];
         bwlast.clear();
         bwlast.reserve(n+1);
-        bwlast.push_back(last[n-2]);
-        if (params.get_sai) bwsai.push_back(sai[n-1]);
+        bwlast.push_back(last_[n-2]);
+        if (params_.get_sai) bwsai.push_back(sai[n-1]);
         for (size_t i = 1; i < n+1; ++i) {
             if (!SA[i]) {
                 SA[i] = 0;
                 bwlast.push_back(0);
                 // TODO: write to bwsai
-                if (params.get_sai) bwsai.push_back(0);
+                if (params_.get_sai) bwsai.push_back(0);
             } else {
                 if (SA[i] == 1) {
-                    bwlast.push_back(last[n-1]);
+                    bwlast.push_back(last_[n-1]);
                 } else {
-                    bwlast.push_back(last[SA[i]-2]);
+                    bwlast.push_back(last_[SA[i]-2]);
                 }
-                if (params.get_sai) bwsai.push_back(sai[SA[i]-1]);
-                SA[i] = parse_ranks[SA[i] - 1];
+                if (params_.get_sai) bwsai.push_back(sai[SA[i]-1]);
+                SA[i] = parse_ranks_[SA[i] - 1];
             }
         }
         std::vector<UIntType> F(occs.size()+1, 0);
@@ -332,42 +250,80 @@ struct Parser {
         out_fn(bwlast, ilist, bwsai);
     }
 
-    size_t get_parse_size() const { return parse_size; }
+    size_t get_parse_size() const { return parse_ranks_.size(); }
 
     const std::vector<UIntType>& get_doc_starts() const {
-        return doc_starts;
+        return doc_starts_;
     }
 
     const std::vector<std::string>& get_doc_names() const {
-        return doc_names;
+        return doc_names_;
     }
 
     const std::vector<ntab_entry>&  get_ntab() const {
-        return ntab;
+        return ntab_;
+    }
+
+    const std::vector<UIntType> get_occs() {
+        std::vector<UIntType> occs;
+        occs.reserve(sorted_phrases_.size());
+        for (auto phrase: sorted_phrases_) {
+            auto wf = freqs.find(phrase);
+            if (wf == freqs.end()) die("there's a problem");
+            occs.push_back(wf->second.n);
+        }
+        return occs;
+    }
+
+    const std::vector<const char*>& get_sorted_dict() {
+        return sorted_phrases_;
+    }
+
+    // sort dictionary, update ranks
+    // call when done processing all files
+    void finalize() {
+        // TODO: add final w Dollars to the parse
+        sorted_phrases_.clear();
+        sorted_phrases_.reserve(freqs.size());
+        for (auto it = freqs.begin(); it != freqs.end(); ++it) {
+            sorted_phrases_.push_back(it->first.data());
+        }
+        std::sort(sorted_phrases_.begin(), sorted_phrases_.end(),
+                [](const char* l, const char* r) { return strcmp(l, r) <= 0; });
+        size_t rank = 1;
+        for (auto phrase: sorted_phrases_) {
+            auto& wf = freqs.at(phrase);
+            wf.r = rank++;
+        }
+        parse_ranks_.clear();
+        parse_ranks_.reserve(parse_.size());
+        for (auto phrase: parse_) {
+            auto wf = freqs.at(std::string(phrase));
+            parse_ranks_.push_back(wf.r);
+        }
     }
 
     private:
 
-    using FreqMap = std::map<std::string, Freq<UIntType>>;
-
     void inline process_phrase(const std::string& phrase) {
         auto ret = freqs.insert({phrase, Freq<UIntType>(1)});
         if (!ret.second) ret.first->second.n += 1;
-        parse.push_back(ret.first->first.data());
-        last.push_back(phrase[phrase.size()-params.w-1]);
+        parse_.push_back(ret.first->first.data());
+        last_.push_back(phrase[phrase.size()-params_.w-1]);
     }
 
+
     FreqMap freqs;
-    std::vector<const char*> parse;
-    std::vector<UIntType> occs;
-    std::vector<int_text> parse_ranks;
-    std::vector<char> last;
+    std::vector<const char*> parse_;
+    std::vector<int_text> parse_ranks_;
+    std::vector<const char*> sorted_phrases_;
+    std::vector<char> last_;
     std::vector<UIntType> sai;
-    std::vector<UIntType> doc_starts;
-    std::vector<std::string> doc_names;
-    std::vector<ntab_entry> ntab;
-    size_t parse_size;
-    ParserParams params;
+    std::vector<UIntType> doc_starts_;
+    std::vector<std::string> doc_names_;
+    std::vector<ntab_entry> ntab_;
+    ParserParams params_;
+    UIntType pos_ = 0;
 };
 }; // namespace end
 
