@@ -5,7 +5,7 @@
 #include <getopt.h>
 #include <chrono>
 #include "pfbwt-f.hpp"
-#include "parse-f.hpp"
+#include "pfparser.hpp"
 #include "hash.hpp"
 #include "file_wrappers.hpp"
 extern "C" {
@@ -200,8 +200,8 @@ void vec_to_file(const std::vector<T>& vec, size_t nelems, std::string fname) {
     fclose(fp);
 }
 
-pfbwtf::ParserParams args_to_parser_params(Args args) {
-    pfbwtf::ParserParams p;
+pfbwtf::PfParserParams args_to_parser_params(Args args) {
+    pfbwtf::PfParserParams p;
     p.w = args.w;
     p.p = args.p;
     p.get_sai = args.sa || args.rssa;
@@ -226,9 +226,9 @@ pfbwtf::PrefixFreeBWTParams args_to_pfbwt_params(Args args) {
 /* saves dict, occs, ilist, bwlast (and bwsai) to disk */
 size_t run_parser(Args args) {
     // build the dictionary and populate .last, .sai and .parse_old
-    using parse_t = pfbwtf::Parser<WangHash>;
+    using parse_t = pfbwtf::PfParser<WangHash>;
     size_t n = 0;
-    pfbwtf::ParserParams params(args_to_parser_params(args));
+    pfbwtf::PfParserParams params(args_to_parser_params(args));
     parse_t p(params);
     fprintf(stderr, "starting...\n");
     { // TODO: add option for more fasta files
@@ -239,7 +239,7 @@ size_t run_parser(Args args) {
         Timer t("TASK\tfinalizing parse, writing dict and occs\t");
         p.finalize();
         FILE* dict_fp = open_aux_file(args.output.data(), EXTDICT, "wb");
-        std::vector<const char*> dict = p.get_sorted_dict();
+        std::vector<const char*> dict = p.get_sorted_phrases();
         for (auto phrase: dict) {
             if (fwrite(phrase, 1, strlen(phrase), dict_fp) != strlen(phrase))
                 die("Error writing to DICT file\n");

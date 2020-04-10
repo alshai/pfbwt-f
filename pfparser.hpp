@@ -1,5 +1,9 @@
-#ifndef PARSE_HPP
-#define PARSE_HPP
+#ifndef PFPARSE_HPP
+#define PFPARSE_HPP
+
+/* Author: Taher Mun
+ * Date  : April 10, 2020
+ */
 
 #include <cstdio>
 #include <cinttypes>
@@ -23,7 +27,7 @@ KSEQ_INIT(gzFile, gzread);
 
 namespace pfbwtf {
 
-struct ParserParams {
+struct PfParserParams {
     size_t w = 10;
     size_t p = 100;
     bool get_sai = false;
@@ -61,23 +65,23 @@ template<typename UIntType>
 using FreqMap = std::map<std::string, Freq<UIntType>>;
 
 template <typename Hasher=WangHash>
-struct Parser {
+struct PfParser {
 
     public:
 
     using UIntType = uint_t;
     using IntType = int_text;
 
-    Parser() {}
+    PfParser() {}
 
-    Parser(ParserParams p) : params_(p) {
+    PfParser(PfParserParams p) : params_(p) {
         check_w(p.w);
     }
 
     // load from serialized dict, occs and parse ranks, 
     // and others as user sees fit
     // assuming dict is sorted, occs same order as dict
-    Parser(ParserParams params, 
+    PfParser(PfParserParams params, 
            std::vector<std::string>& sorted_phrases, 
            std::vector<IntType>&& parse_ranks,
            std::vector<UIntType>&& doc_starts = std::vector<UIntType>(),
@@ -106,7 +110,7 @@ struct Parser {
         finalize();
     }
 
-    Parser(const Parser& rhs) 
+    PfParser(const PfParser& rhs) 
         : freqs_(rhs.freqs_)
         , parse_ranks_(rhs.parse_ranks_)
         , last_(rhs.last_)
@@ -122,7 +126,7 @@ struct Parser {
         last_phrase_ = std::string(parse_.back());
     }
 
-    Parser(Parser&& rhs) 
+    PfParser(PfParser&& rhs) 
         : freqs_(std::move(rhs.freqs_))
         , parse_ranks_(std::move(rhs.parse_ranks_))
         , last_(std::move(rhs.last_))
@@ -138,7 +142,7 @@ struct Parser {
         last_phrase_ = std::string(parse_.back());
     }
 
-    Parser& operator=(const Parser& rhs) {
+    PfParser& operator=(const PfParser& rhs) {
         params_ = rhs.params_;
         freqs_ = rhs.freqs_;
         parse_ranks_ = rhs.parse_ranks_;
@@ -155,7 +159,7 @@ struct Parser {
         return *this;
     }
 
-    Parser& operator=(Parser&& rhs) {
+    PfParser& operator=(PfParser&& rhs) {
         params_ = std::move(rhs.params_);
         freqs_ = std::move(rhs.freqs_);
         parse_ranks_ = std::move(rhs.parse_ranks_);
@@ -173,7 +177,7 @@ struct Parser {
 
     // append information from another parse 
     // remember to use .finalize() after finishing using +=!
-    Parser& operator+=(const Parser& rhs) {
+    PfParser& operator+=(const PfParser& rhs) {
         if (!freqs_.size()) return operator=(rhs);
         if (rhs.params_.w != params_.w) exit(1);
         if (rhs.params_.p != params_.p) exit(1);
@@ -242,7 +246,7 @@ struct Parser {
         return *this;
     }
 
-    bool operator==(const Parser& rhs) {
+    bool operator==(const PfParser& rhs) {
         if (pos_ != rhs.pos_) return false;
         if (parse_ranks_.size() != rhs.parse_ranks_.size()) return false;
         if (last_.size() != rhs.last_.size()) return false;
@@ -522,7 +526,7 @@ struct Parser {
     size_t get_pos() const { return pos_; }
     const std::vector<const char*>& get_sorted_phrases() const { return sorted_phrases_; }
     const std::vector<ntab_entry>&  get_ntab() const { return ntab_; }
-    const ParserParams get_params() const { return params_; }
+    const PfParserParams get_params() const { return params_; }
 
     private:
 
@@ -564,11 +568,11 @@ struct Parser {
     std::vector<UIntType> doc_starts_;
     std::vector<std::string> doc_names_;
     std::vector<ntab_entry> ntab_;
-    ParserParams params_;
+    PfParserParams params_;
     UIntType pos_ = 0; // total characters in parse, INCLUDING Dollar chars!
     std::string last_phrase_ = "";
     size_t nseqs_ = 0;
 };
 }; // namespace end
 
-#endif
+#endif // PFPARSE_HPP

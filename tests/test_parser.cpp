@@ -7,13 +7,13 @@
 #include <map>
 #include <algorithm>
 #include "file_wrappers.hpp"
-#include "parse-f.hpp"
+#include "pfparser.hpp"
 #include "pfbwt_io.hpp"
 extern "C" {
 #include <utils.h>
 }
 
-bool parser_cmp(const pfbwtf::Parser<>& lhs, const pfbwtf::Parser<>& rhs, std::string msg, FILE* log) {
+bool parser_cmp(const pfbwtf::PfParser<>& lhs, const pfbwtf::PfParser<>& rhs, std::string msg, FILE* log) {
     // if (lhs.get_pos() != rhs.get_pos()) {
     //     fprintf(log, "%s: %s: pos mismatch %lu vs %lu\n", msg.data(), __func__, lhs.get_pos(), rhs.get_pos());
     //     return false;
@@ -89,10 +89,10 @@ bool parser_cmp(const pfbwtf::Parser<>& lhs, const pfbwtf::Parser<>& rhs, std::s
 // makes sure that the loaded file's aux data structures are properly generated
 bool parser_test_load(FILE* log) {
     // load parser
-    pfbwtf::ParserParams params;
+    pfbwtf::PfParserParams params;
     params.get_sai = true;
     std::string prefix = "tests/random_examples/random.all.fa";
-    pfbwtf::Parser<> p_loaded(load_parser(prefix, params));
+    pfbwtf::PfParser<> p_loaded(load_parser(prefix, params));
     auto lhs_parse = load_parse(prefix + ".parse_"); // NOTE: need to free elements here
     auto rhs_parse = p_loaded.get_parse();
     if (lhs_parse.size() != rhs_parse.size()) {
@@ -135,29 +135,29 @@ bool parser_test_load(FILE* log) {
 }
 
 bool parser_test_eq(FILE* log) {
-    pfbwtf::ParserParams params;
+    pfbwtf::PfParserParams params;
     params.get_sai = true;
-    pfbwtf::Parser<> truth(load_parser("tests/random_examples/random.1.fa", params));
-    pfbwtf::Parser<> test;
+    pfbwtf::PfParser<> truth(load_parser("tests/random_examples/random.1.fa", params));
+    pfbwtf::PfParser<> test;
     test = truth;
     return parser_cmp(truth, test, std::string(__func__), log);
 }
 
 // mult. seqs in one fasta file
 int parser_test_add_fasta1(FILE* log) {
-    pfbwtf::ParserParams params;
+    pfbwtf::PfParserParams params;
     params.get_sai = true;
-    pfbwtf::Parser<> truth(load_parser("tests/random_examples/random.all.fa", params));
-    pfbwtf::Parser<> test(parse_from_fasta("tests/random_examples/random.all.fa", params));
+    pfbwtf::PfParser<> truth(load_parser("tests/random_examples/random.all.fa", params));
+    pfbwtf::PfParser<> test(parse_from_fasta("tests/random_examples/random.all.fa", params));
     return parser_cmp(truth, test, std::string(__func__), log);
 }
 
 // checks if loading seqs from sequence of files matches loading all seqs from a single file
 bool parser_test_add_fasta2(FILE* log) {
-    pfbwtf::ParserParams params;
+    pfbwtf::PfParserParams params;
     params.get_sai = true;
-    pfbwtf::Parser<> truth(load_parser("tests/random_examples/random.all.fa", params));
-    pfbwtf::Parser<> test(params);
+    pfbwtf::PfParser<> truth(load_parser("tests/random_examples/random.all.fa", params));
+    pfbwtf::PfParser<> test(params);
     for (int i = 1; i < 251; ++i) {
         std::string prefix = "tests/random_examples/random." + std::to_string(i) + ".fa";
         test.add_fasta(prefix);
@@ -167,13 +167,13 @@ bool parser_test_add_fasta2(FILE* log) {
 }
 
 bool parser_test_pluseq(FILE* log) {
-    pfbwtf::ParserParams params;
+    pfbwtf::PfParserParams params;
     params.get_sai = true;
-    pfbwtf::Parser<> truth(load_parser("tests/random_examples/random.all.fa", params));
-    pfbwtf::Parser<> test(params);
+    pfbwtf::PfParser<> truth(load_parser("tests/random_examples/random.all.fa", params));
+    pfbwtf::PfParser<> test(params);
     for (int i = 1; i < 251; ++i) {
         std::string prefix = "tests/random_examples/random." + std::to_string(i) + ".fa";
-        pfbwtf::Parser<> p(parse_from_fasta(prefix, params));
+        pfbwtf::PfParser<> p(parse_from_fasta(prefix, params));
         test += p;
     }
     test.finalize();
@@ -181,10 +181,10 @@ bool parser_test_pluseq(FILE* log) {
 }
 
 bool parser_test_get_n(FILE* log) {
-    pfbwtf::ParserParams params;
+    pfbwtf::PfParserParams params;
     params.get_sai = true;
     std::string fname = "tests/random_examples/random.all.fa";
-    pfbwtf::Parser<> p(load_parser(fname, params));
+    pfbwtf::PfParser<> p(load_parser(fname, params));
     auto fasta_info = get_fasta_lengths(fname);
     size_t true_n = 0;
     for (auto x: fasta_info) { true_n += x.second + params.w; } // add w bc we implicitly add As
@@ -194,9 +194,9 @@ bool parser_test_get_n(FILE* log) {
 
 constexpr int NMERGE = 10;
 bool parser_test_merge(FILE* log) {
-    pfbwtf::ParserParams params;
+    pfbwtf::PfParserParams params;
     params.get_sai = true;
-    pfbwtf::Parser<> to_merge[250 / NMERGE];
+    pfbwtf::PfParser<> to_merge[250 / NMERGE];
     std::string prefix = "tests/random_examples/random.";
     for (int i = 0; i < 250; i += NMERGE) {
         for (int j = i; j < i + NMERGE; ++j) {
@@ -205,12 +205,12 @@ bool parser_test_merge(FILE* log) {
         }
         to_merge[i/NMERGE].finalize(); // TODO: I don't understand why, but this finalize step is very necessary
     }
-    pfbwtf::Parser<> merged;
+    pfbwtf::PfParser<> merged;
     for (int i = 0; i < 250 / NMERGE; ++i) {
         merged += to_merge[i];
     }
     merged.finalize(); // generate ranks etc
-    pfbwtf::Parser<> truth(load_parser(prefix + "all.fa", params));
+    pfbwtf::PfParser<> truth(load_parser(prefix + "all.fa", params));
     return parser_cmp(truth, merged, std::string(__func__), log);
 }
 
