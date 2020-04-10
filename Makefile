@@ -33,8 +33,8 @@ simplebwt64: simplebwt.o gsa/gsacak64.o
 dump_intfile: scripts/dump_intfile.cpp
 	$(CXX) $(CXX_FLAGS) -o $@ $<
 
-merge_parse: merge_parses/merge_parse.cpp utils.o
-	$(CXX) $(CXX_FLAGS) -o $@ merge_parses/merge_parse.cpp utils.o
+test_parser: parse-f.hpp pfbwt_io.hpp tests/test_parser.cpp utils.o
+	$(CXX) $(CXX_FLAGS) -DM64 -g -o $@ tests/test_parser.cpp utils.o -lz
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<

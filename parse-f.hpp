@@ -15,8 +15,10 @@
 extern "C" {
 #include "utils.h"
 #include "gsa/gsacak.h"
+#ifndef AC_KSEQ_H
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread);
+#endif
 }
 
 namespace pfbwtf {
@@ -66,6 +68,8 @@ struct Parser {
     using UIntType = uint_t;
     using IntType = int_text;
 
+    Parser() {}
+
     Parser(ParserParams p) : params_(p) {
         check_w(p.w);
     }
@@ -74,59 +78,178 @@ struct Parser {
     // and others as user sees fit
     // assuming dict is sorted, occs same order as dict
     Parser(ParserParams params, 
-           std::vector<std::string>& dict, 
-           std::vector<UIntType>& occs, 
-           std::vector<IntType>& parse_ranks,
-           std::vector<UIntType>&& sai = std::vector<UIntType>(),
+           std::vector<std::string>& sorted_phrases, 
+           std::vector<IntType>&& parse_ranks,
            std::vector<UIntType>&& doc_starts = std::vector<UIntType>(),
            std::vector<std::string>&& doc_names = std::vector<std::string>(),
            std::vector<ntab_entry>&& ntab = std::vector<ntab_entry>()
            ) 
-        : sai_(sai)
+        : parse_ranks_(parse_ranks)
         , doc_starts_(doc_starts)
         , doc_names_(doc_names)
         , ntab_(ntab)
         , params_(params)
     {
-        // TODO: confirm dict is sorted
-        if (dict.size() != occs.size()) {
-            die("error: dict and occs file do not have equal number of elements!");
-        }
-        sorted_phrases_.reserve(dict.size());
-        size_t n = 0;
-        size_t total_occs = 0;
-        size_t r = 1;
-        // load freqs_ 
-        for (size_t i = 0; i < dict.size(); ++i) {
-            // fprintf(stderr, "%s\n", dict[i].data());
-            auto ret = freqs_.insert({dict[i], Freq<UIntType>(occs[i], r++)});
-            if (!ret.second) die("something went wrong creating FreqMap");
-            sorted_phrases_.push_back(ret.first->first.data());
-            total_occs += occs[i];
-            n += (dict[i].size() - params_.w) * occs[i];
-        }
-        pos_ = n - 1;  // - 1 bc dict has extra Dollar at start
-        // load parse_ranks_ and last_
-        parse_ranks_.reserve(total_occs);
-        parse_.reserve(total_occs);
-        last_.reserve(total_occs);
-        parse_ranks_ = parse_ranks;
+        sorted_phrases_.reserve(sorted_phrases.size());
+        parse_.reserve(parse_ranks_.size());
+        last_.reserve(parse_ranks_.size());
         std::string phrase;
-        for (auto rank: parse_ranks_) {
-            const char* phr = sorted_phrases_[rank-1];
-            parse_.push_back(phr);
-            phrase = std::string(phr);
-            last_.push_back(phrase[phrase.size()-params_.w-1]);
-            if (rank == dict.size()) last_phrase_ = phrase;
+        for (size_t i = 0; i < parse_ranks_.size()-1; ++i) {
+            phrase.assign(sorted_phrases[parse_ranks_[i]-1]);
+            pos_ += pos_ ? phrase.size() - params_.w : phrase.size() - 1;
+            process_phrase(phrase);
         }
+        last_phrase_ = sorted_phrases[parse_ranks_.back()-1];
+        // account for first w characters AND last w Dollars here (hence "2*")
+        pos_ += last_phrase_.size() - (2 * params_.w) + 1; 
+        last_phrase_.erase(last_phrase_.size() - params_.w, params_.w);
+        finalize();
+    }
+
+    Parser(const Parser& rhs) 
+        : freqs_(rhs.freqs_)
+        , parse_ranks_(rhs.parse_ranks_)
+        , last_(rhs.last_)
+        , sai_(rhs.sai_)
+        , doc_starts_(rhs.doc_starts_)
+        , doc_names_(rhs.doc_names_)
+        , params_(rhs.params_)
+        , pos_(rhs.pos_)
+        , nseqs_(rhs.nseqs_)
+    {
+        sort_dict();
+        regenerate_parse();
+        last_phrase_ = std::string(parse_.back());
+    }
+
+    Parser(Parser&& rhs) 
+        : freqs_(std::move(rhs.freqs_))
+        , parse_ranks_(std::move(rhs.parse_ranks_))
+        , last_(std::move(rhs.last_))
+        , sai_(std::move(rhs.sai_))
+        , doc_starts_(std::move(rhs.doc_starts_))
+        , doc_names_(std::move(rhs.doc_names_))
+        , params_(std::move(rhs.params_))
+        , pos_(std::move(rhs.pos_))
+        , nseqs_(std::move(rhs.nseqs_))
+    {
+        sort_dict();
+        regenerate_parse();
+        last_phrase_ = std::string(parse_.back());
+    }
+
+    Parser& operator=(const Parser& rhs) {
+        params_ = rhs.params_;
+        freqs_ = rhs.freqs_;
+        parse_ranks_ = rhs.parse_ranks_;
+        last_ = rhs.last_;
+        sai_ = rhs.sai_;
+        pos_ = rhs.pos_;
+        doc_starts_ = rhs.doc_starts_;
+        doc_names_ = rhs.doc_names_;
+        nseqs_ = rhs.nseqs_;
+        // parse_ and sorted_phrases_ are pointers to freq_ keys, so they need to be regenerated just in case
+        sort_dict();
+        regenerate_parse();
+        last_phrase_ = std::string(parse_.back());
+        return *this;
+    }
+
+    Parser& operator=(Parser&& rhs) {
+        params_ = std::move(rhs.params_);
+        freqs_ = std::move(rhs.freqs_);
+        parse_ranks_ = std::move(rhs.parse_ranks_);
+        last_ = std::move(rhs.last_);
+        sai_ = std::move(rhs.sai_);
+        pos_ = rhs.pos_;
+        doc_starts_ = std::move(rhs.doc_starts_);
+        doc_names_ = std::move(rhs.doc_names_);
+        nseqs_ = rhs.nseqs_;
+        // parse_ and sorted_phrases_ are pointers to freq_ keys, so they need to be regenerated just in case
+        sort_dict();
+        regenerate_parse();
+        return *this;
+    }
+
+    // append information from another parse 
+    // remember to use .finalize() after finishing using +=!
+    Parser& operator+=(const Parser& rhs) {
+        if (!freqs_.size()) return operator=(rhs);
+        if (rhs.params_.w != params_.w) exit(1);
+        if (rhs.params_.p != params_.p) exit(1);
+        // retrieve final phrase of this parse 
+        std::string phrase(parse_.back());
+        // decrement count of last phrase in frequency table
+        auto it = freqs_.find(phrase);
+        if (it == freqs_.end()) die("last phrase was supposed to be in dict");
+        if (it->second.n) {
+            --(it->second.n);
+        }
+        // made this an 'if' instead of an 'else' on purpose
+        if (!it->second.n) {
+            freqs_.erase(it);
+        }
+        // erase dollars if present
+        if (phrase.back() == Dollar) {
+            phrase.erase(phrase.size() - params_.w, params_.w);
+            pos_ -= params_.w;
+        }
+        // update other data structures as well to reflect removal of last phease
+        parse_.pop_back();
+        last_.pop_back();
+        if (params_.get_sai) sai_.pop_back();
+        // parse_ranks_.pop_back(); // don't really need to do this here bc ranks will be regenerated later
+        // TODO: deal with doc_starts_, doc_names_, ntab_
+        if (rhs.parse_[0][0] != Dollar) die("rhs parser malformed");
+        // join last phrase of this parse and first phrase of next parse
+        // first, load hasher with `w` As
+        Hasher hf(params_.w);
+        for (size_t i = 0; i < params_.w; ++i) hf.update('A');
+        char c; // , pc;
+        // we want to look at the last four As and the first four of the window
+        // (ie. from AAAA_ to A____)
+        // because we're removing the dollar, we also have to redo _____
+        std::string window(rhs.parse_[0]+1, params_.w);
+        assert(window[0] != Dollar);
+        for (size_t i = 0; i < window.size(); ++i) {
+            c = window[i];
+            phrase.append(1, c);
+            hf.update(c);
+            if (hf.hashvalue() % params_.p == 0) {
+                ++pos_; // TODO: make this less hacky
+                process_phrase(phrase);
+                phrase.erase(0, phrase.size()-params_.w);
+                --pos_; // TODO: here too
+            }
+            ++pos_;
+        }
+        // at this point last_phrase ends with first four characters of rhs
+        // we know that rhs.parse_[0] already ends in a window so just join it to last_phrase
+        phrase.append(rhs.parse_[0]+params_.w+1);
+        pos_ += strlen(rhs.parse_[0])-params_.w-1;
+        process_phrase(phrase);
+        // concatenate the rest of rhs.parse_
+        parse_.reserve(parse_.size() + rhs.parse_.size()-1);
+        for (size_t i = 1; i < rhs.parse_.size(); ++i) {
+            phrase.assign(rhs.parse_[i]);
+            pos_ += phrase.size() - params_.w;
+            process_phrase(phrase);
+        } // NOTE: if rhs is finalized, there are also Dollars at end
+        last_phrase_ = parse_.back();
+        // TODO: concatenate doc_names
+        //       this means add pos_ to each doc
+        nseqs_ += rhs.nseqs_;
+        return *this;
     }
 
     bool operator==(const Parser& rhs) {
         if (pos_ != rhs.pos_) return false;
         if (parse_ranks_.size() != rhs.parse_ranks_.size()) return false;
         if (last_.size() != rhs.last_.size()) return false;
-        if (sai_.size() != rhs.sai_.size()) return false;
         if (freqs_.size() != rhs.freqs_.size()) return false;
+        if (params_.get_sai) {
+            if (sai_.size() != rhs.sai_.size()) return false;
+        }
         for (const auto& pair: freqs_) {
             const auto it2 = rhs.freqs_.find(pair.first);
             if (it2 == rhs.freqs_.end()) return false;
@@ -144,73 +267,12 @@ struct Parser {
         for (size_t i = 0; i < sorted_phrases_.size(); ++i) {
             if (strcmp(sorted_phrases_[i], rhs.sorted_phrases_[i])) return false;
         }
-        return true;
-    }
-
-    // append information from another parse 
-    // NOTE: Must call finalize() after this!
-    Parser& operator+=(const Parser& rhs) {
-        if (rhs.params_.w != params_.w) exit(1);
-        if (rhs.params_.p != params_.p) exit(1);
-        // retrieve final phrase of this parse (should have w Dollars appended)
-        std::string last_phrase(parse_[parse_.size()-1]);
-        // decrement count of last phrase in frequency table
-        auto it = freqs_.find(last_phrase);
-        if (it == freqs_.end()) die("last phrase was supposed to be in dict");
-        if (it->second.n) {
-            --(it->second.n);
-        } 
-        // made this an 'if' instead of an 'else' on purpose
-        if (!it->second.n) {
-            freqs_.erase(it);
-        }
-        // erase Dollars from last phrase
-        last_phrase.erase(last_phrase.size() - params_.w, params_.w);
-        // update other data structures as well to reflect last_phrase modification
-        parse_.pop_back();
-        last_.pop_back();
-        // parse_ranks_.pop_back(); // don't really need to do this here
-        // TODO: deal with sai, doc_starts_, doc_names_, ntab_
-        // sai.pop_back()
-        if (rhs.parse_[0][0] != Dollar) die("rhs parser malformed");
-        // load hasher with w As
-        Hasher hf(params_.w);
-        for (size_t i = 0; i < params_.w; ++i) hf.update('A');
-        char c; // , pc;
-        // let w = 5. we want to look at:
-        // AAAA_ AAA__ AA___ A____ (first four of next parse)
-        std::string window(rhs.parse_[0]+1, params_.w-1);
-        assert(window[0] != Dollar);
-        for (size_t i = 0; i < window.size(); ++i) {
-            c = window[i];
-            last_phrase.append(1, c);
-            hf.update(c);
-            if (hf.hashvalue() % params_.p == 0) {
-                process_phrase(last_phrase);
-                // if (params_.get_sai) sai_.push_back(pos_+1);
-                last_phrase.erase(last_phrase.size()-params_.w);
+        if (params_.get_sai) {
+            for (size_t i = 0; i < sai_.size(); ++i) {
+                if (sai_[i] != rhs.sai_[i]) return false;
             }
-            // ++pos_;
-            // pc = c;
         }
-        // at this point last_phrase ends with first four characters of rhs
-        // we know that rhs.parse_[0] already ends in a window so just join it to last_phrase
-        last_phrase.append(rhs.parse_[0]+params_.w);
-        process_phrase(last_phrase);
-        // concatenate the rest of rhs.parse_
-        parse_.reserve(parse_.size() + rhs.parse_.size()-1);
-        std::string phrase;
-        for (size_t i = 1; i < rhs.parse_.size()-1; ++i) {
-            phrase.assign(rhs.parse_[i]);
-            process_phrase(phrase);
-            // do something about sai
-        }
-        last_phrase_.assign(rhs.parse_[rhs.parse_.size()-1]);
-        last_phrase_.erase(last_phrase_.size() - params_.w, params_.w);
-        // concatenate doc_names
-        // add params_.w + pos_ to each doc_start I guess
-        pos_ = pos_ + rhs.pos_;
-        return *this;
+        return true;
     }
 
     // stores parse information from a fasta file
@@ -224,18 +286,22 @@ struct Parser {
         if (fp == NULL) die("failed to open file!\n");
         kseq_t* seq = kseq_init(fp);
         int l;
-        uint64_t nseqs(0);
 #if !M64
         uint64_t total_l(0);
 #endif
-        char c('A'), pc('A');
         ntab_entry ne;
+        char c('A'), pc('A');
         std::string phrase(last_phrase_);
-        if (!pos_) phrase.append(1, Dollar);
+        if (!pos_) {
+            phrase.append(1, Dollar);
+            ++pos_;
+        }
         Hasher hf(params_.w);
         while (( l = kseq_read(seq) ) >= 0) {
+            nseqs_ += 1;
             if (params_.store_docs) {
-                doc_starts_.push_back(pos_);
+                // subtract 1 Dollar and w*(npreviousdocs) Dollars
+                doc_starts_.push_back(pos_ - 1 - (params_.w * doc_starts_.size()));
                 doc_names_.push_back(seq->name.s);
             }
 #if !M64
@@ -251,32 +317,14 @@ struct Parser {
                 // this if-else ensures `w` As will be appended to end of seq
                 c = i < seq->seq.l ? std::toupper(seq->seq.s[i]) : 'A';
                 if (params_.trim_non_acgt) {
-                    char x = seq_nt4_table[static_cast<size_t>(pc)];
-                    char y = seq_nt4_table[static_cast<size_t>(c)];
-                    if (y > 3) { // skip if nonACGT
-                        if (x < 4) { // new N run
-                            ne.l = 1;
-                            ne.pos = pos_-1;
-                        } else {
-                            ne.l += 1;
-                        }
-                        pc = c;
-                        continue; // make sure that rest of loop is skipped
-                    }
-                    if (y < 4 && x > 3) { // record if [^ACGT] run ended
-                        ntab_.push_back(ne);
-                        ne.clear();
-                    }
+                    if (update_ntab(pc, c, ne)) continue;
                 } else if (params_.non_acgt_to_a && seq_nt4_table[static_cast<size_t>(c)] > 3) {
                     c = 'A';
                 }
                 phrase.append(1, c);
                 hf.update(c);
-                if (hf.hashvalue() % params_.p == 0) {
+                if (pos_ > params_.w && hf.hashvalue() % params_.p == 0) {
                     process_phrase(phrase);
-                    if (params_.get_sai) {
-                        sai_.push_back(pos_+1);
-                    }
                     phrase.erase(0, phrase.size()-params_.w);
                 }
                 ++pos_;
@@ -286,14 +334,11 @@ struct Parser {
             if (params_.trim_non_acgt && seq_nt4_table[static_cast<size_t>(c)] > 3) {
                 ntab_.push_back(ne);
             }
-            ++nseqs;
         }
         last_phrase_ = phrase;
         // phrase.append(params_.w, Dollar);
         // process_phrase(phrase);
-        if (params_.get_sai) {
-            sai_.push_back(pos_ + params_.w);
-        }
+        //
         kseq_destroy(seq);
         gzclose(fp);
         return pos_;
@@ -304,17 +349,6 @@ struct Parser {
             fprintf(stderr, "window size w must be < 32!\n");
             exit(1);
         }
-    }
-
-    const std::vector<const char*>& get_parse() const {
-        return parse_;
-    }
-
-    const std::vector<int_text>& get_parse_ranks() const {
-        if (!parse_ranks_.size()) {
-            die("parse ranks have not been generated!");
-        }
-        return parse_ranks_;
     }
 
     // generates bwlast and ilist (and bwsai)
@@ -418,10 +452,6 @@ struct Parser {
         return doc_names_;
     }
 
-    const std::vector<ntab_entry>&  get_ntab() const {
-        return ntab_;
-    }
-
     const std::vector<UIntType> get_occs() {
         std::vector<UIntType> occs;
         occs.reserve(sorted_phrases_.size());
@@ -433,16 +463,19 @@ struct Parser {
         return occs;
     }
 
-    const std::vector<const char*>& get_sorted_dict() {
-        return sorted_phrases_;
-    }
-
     // sort dictionary, update ranks
     // call when done processing all files
     void finalize() {
-        // TODO: add final w Dollars to the parse
-        last_phrase_.append(params_.w, Dollar);
-        process_phrase(last_phrase_);
+        if (last_phrase_.back() != Dollar)  {
+            last_phrase_.append(params_.w, Dollar);
+            pos_ += params_.w - 1; // because we added w Dollars
+            process_phrase(last_phrase_);
+        }
+        sort_dict();
+        generate_ranks();
+    }
+
+    void sort_dict() {
         sorted_phrases_.clear();
         sorted_phrases_.reserve(freqs_.size());
         for (auto it = freqs_.begin(); it != freqs_.end(); ++it) {
@@ -450,26 +483,75 @@ struct Parser {
         }
         std::sort(sorted_phrases_.begin(), sorted_phrases_.end(),
                 [](const char* l, const char* r) { return strcmp(l, r) <= 0; });
+    }
+
+    void generate_ranks() {
+        if (!sorted_phrases_.size()) sort_dict();
         size_t rank = 1;
         for (auto phrase: sorted_phrases_) {
             auto& wf = freqs_.at(phrase);
             wf.r = rank++;
         }
         parse_ranks_.clear();
-        parse_ranks_.reserve(parse_.size());
+        if (parse_.size()) parse_ranks_.reserve(parse_.size());
         for (auto phrase: parse_) {
             auto wf = freqs_.at(std::string(phrase));
             parse_ranks_.push_back(wf.r);
         }
     }
 
+    void regenerate_parse() {
+        if (!sorted_phrases_.size()) { sort_dict(); }
+        if (!parse_ranks_.size()) { generate_ranks(); }
+        parse_.clear();
+        for (auto r: parse_ranks_) {
+            parse_.push_back(sorted_phrases_[r - 1]);
+        }
+    }
+
+    size_t get_n() {  // includes As at end of each seq
+        //             Dollars
+        return pos_ - params_.w; 
+    }
+
+    const std::vector<UIntType>& get_sai() const { return sai_; }
+    const std::vector<char>& get_last() const { return last_; }
+    const FreqMap<UIntType>& get_freqs() const { return freqs_; }
+    const std::vector<const char*>& get_parse() const { return parse_; }
+    const std::vector<int_text>& get_parse_ranks() const { return parse_ranks_; }
+    size_t get_pos() const { return pos_; }
+    const std::vector<const char*>& get_sorted_phrases() const { return sorted_phrases_; }
+    const std::vector<ntab_entry>&  get_ntab() const { return ntab_; }
+    const ParserParams get_params() const { return params_; }
+
     private:
+
+    bool inline update_ntab(char pc, char c, ntab_entry& ne) {
+        char x = seq_nt4_table[static_cast<size_t>(pc)];
+        char y = seq_nt4_table[static_cast<size_t>(c)];
+        if (y > 3) { // skip if nonACGT
+            if (x < 4) { // new N run
+                ne.l = 1;
+                ne.pos = pos_-1;
+            } else {
+                ne.l += 1;
+            }
+            pc = c;
+            return true;
+        }
+        if (y < 4 && x > 3) { // record if [^ACGT] run ended
+            ntab_.push_back(ne);
+            ne.clear();
+        }
+        return false;
+    }
 
     void inline process_phrase(const std::string& phrase) {
         auto ret = freqs_.insert({phrase, Freq<UIntType>(1)});
         if (!ret.second) ret.first->second.n += 1;
         parse_.push_back(ret.first->first.data());
         last_.push_back(phrase[phrase.size()-params_.w-1]);
+        if (params_.get_sai) sai_.push_back(pos_);
     }
 
 
@@ -483,8 +565,9 @@ struct Parser {
     std::vector<std::string> doc_names_;
     std::vector<ntab_entry> ntab_;
     ParserParams params_;
-    UIntType pos_ = 0; // total # of non-Dollar chars in parse. includes extra w As appended to each seq
+    UIntType pos_ = 0; // total characters in parse, INCLUDING Dollar chars!
     std::string last_phrase_ = "";
+    size_t nseqs_ = 0;
 };
 }; // namespace end
 
