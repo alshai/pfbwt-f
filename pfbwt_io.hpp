@@ -4,7 +4,7 @@
 #include <string>
 #include <tuple>
 #include "file_wrappers.hpp"
-#include "parse-f.hpp"
+#include "pfparser.hpp"
 extern "C" {
 #ifndef AC_KSEQ_H
 #include "kseq.h"
@@ -35,6 +35,48 @@ std::vector<std::pair<std::string, size_t>> get_fasta_lengths(std::string fname)
         v.push_back({seq->name.s, seq->seq.l});
     }
     return v;
+}
+
+template<typename T>
+void vec_to_file(const std::vector<T>& vec, std::string fname) {
+    FILE* fp = fopen(fname.data(), "wb");
+    if (fwrite(vec.data(), sizeof(T), vec.size(), fp) != vec.size() ) {
+        die("could not write file");
+    }
+    fclose(fp);
+}
+
+template<>
+void vec_to_file<std::string>(const std::vector<std::string>& vec, std::string fname) {
+    FILE* fp = fopen(fname.data(), "w");
+    for (auto v: vec) {
+        fprintf(fp, "%s\n", v.data());
+    }
+    fclose(fp);
+}
+
+template<typename T>
+void vec_to_file(const std::vector<T>& vec, size_t nelems, std::string fname) {
+    FILE* fp = fopen(fname.data(), "wb");
+    if (fwrite(vec.data(), sizeof(T), nelems, fp) != nelems ) {
+        die("could not write file");
+    }
+    fclose(fp);
+}
+
+void dict_to_file(const std::vector<const char*>& phrases, std::string fname) {
+    FILE* dict_fp = fopen(fname.data(), "wb");
+    for (auto phrase: phrases) {
+        if (fwrite(phrase, 1, strlen(phrase), dict_fp) != strlen(phrase))
+            die("Error writing to DICT file\n");
+        if (fputc(EndOfWord, dict_fp) == EOF)
+            die("Error writing EndOfWord to DICT file");
+    }
+    if (fputc(EndOfDict, dict_fp) == EOF) die("Error writing EndOfDict to DICT file");
+    if (fclose(dict_fp)) die("Error closing DICT file");
+    else fprintf(stderr, "DICT written to %s\n", fname.data());
+    fclose(dict_fp);
+    fprintf(stderr, "dict_to_file END\n");
 }
 
 template<typename T>
@@ -122,17 +164,29 @@ std::vector<const char*> load_parse(std::string parse_fname) {
     return parse;
 }
 
-pfbwtf::Parser<> load_parser(std::string prefix, pfbwtf::ParserParams p) {
-    // using UIntType = pfbwtf::Parser<>::UIntType;
-    using IntType = pfbwtf::Parser<>::IntType;
+/* loads parser from .dict and .parse files */
+pfbwtf::PfParser<> load_parser(std::string prefix, pfbwtf::PfParserParams p) {
+    // using UIntType = pfbwtf::PfParser<>::UIntType;
+    using IntType = pfbwtf::PfParser<>::IntType;
     auto dict = load_dict(prefix + ".dict");
     auto parse_ranks = load_parse_ranks<IntType>(prefix + ".parse");
-    return pfbwtf::Parser<>(p, dict, std::move(parse_ranks));
+    return pfbwtf::PfParser<>(p, dict, std::move(parse_ranks));
 }
 
-pfbwtf::Parser<> parse_from_fasta(std::string fasta_fname, pfbwtf::ParserParams p) {
-    pfbwtf::Parser<> parser(p);
+/* saves parser to .dict, .occ, and .parse files */
+void save_parser(const pfbwtf::PfParser<>& parser, std::string prefix) {
+    std::string dict_fname = prefix + ".dict";
+    std::string occ_fname = prefix + ".occ";
+    std::string parse_ranks_fname = prefix + ".parse";
+    dict_to_file(parser.get_sorted_phrases(), dict_fname);
+    vec_to_file(parser.get_occs(), occ_fname);
+    vec_to_file(parser.get_parse_ranks(), parser.get_parse_size(), parse_ranks_fname);
+}
+
+pfbwtf::PfParser<> parse_from_fasta(std::string fasta_fname, pfbwtf::PfParserParams p) {
+    pfbwtf::PfParser<> parser(p);
     parser.add_fasta(fasta_fname);
     parser.finalize();
     return parser;
 }
+

@@ -8,6 +8,7 @@
 #include "pfparser.hpp"
 #include "hash.hpp"
 #include "file_wrappers.hpp"
+#include "pfbwt_io.hpp"
 extern "C" {
 #include "utils.h"
 }
@@ -173,32 +174,6 @@ Args parse_args(int argc, char** argv) {
     return args;
 }
 
-template<typename T>
-void vec_to_file(const std::vector<T>& vec, std::string fname) {
-    FILE* fp = fopen(fname.data(), "wb");
-    if (fwrite(vec.data(), sizeof(T), vec.size(), fp) != vec.size() ) {
-        die("could not write file");
-    }
-    fclose(fp);
-}
-
-template<>
-void vec_to_file<std::string>(const std::vector<std::string>& vec, std::string fname) {
-    FILE* fp = fopen(fname.data(), "w");
-    for (auto v: vec) {
-        fprintf(fp, "%s\n", v.data());
-    }
-    fclose(fp);
-}
-
-template<typename T>
-void vec_to_file(const std::vector<T>& vec, size_t nelems, std::string fname) {
-    FILE* fp = fopen(fname.data(), "wb");
-    if (fwrite(vec.data(), sizeof(T), nelems, fp) != nelems ) {
-        die("could not write file");
-    }
-    fclose(fp);
-}
 
 pfbwtf::PfParserParams args_to_parser_params(Args args) {
     pfbwtf::PfParserParams p;
@@ -236,27 +211,16 @@ size_t run_parser(Args args) {
         n = p.add_fasta(args.in_fname);
     }
     {
-        Timer t("TASK\tfinalizing parse, writing dict and occs\t");
+        Timer t("TASK\tfinalizing parse, writing dict, occs, and ranks\t");
         p.finalize();
-        FILE* dict_fp = open_aux_file(args.output.data(), EXTDICT, "wb");
-        std::vector<const char*> dict = p.get_sorted_phrases();
-        for (auto phrase: dict) {
-            if (fwrite(phrase, 1, strlen(phrase), dict_fp) != strlen(phrase))
-                die("Error writing to DICT file\n");
-            if (fputc(EndOfWord, dict_fp) == EOF)
-                die("Error writing EndOfWord to DICT file");
-        }
-        if (fputc(EndOfDict, dict_fp) == EOF) die("Error writing EndOfDict to DICT file");
-        if (fclose(dict_fp)) die("Error closing DICT file");
-        else fprintf(stderr, "DICT written to %s.%s\n", args.output.data(), EXTDICT);
-        vec_to_file(p.get_occs(), args.output + "." + EXTOCC);
-        vec_to_file(p.get_parse_ranks(), p.get_parse_size(), args.output + "." + EXTPARSE);
+        save_parser(p, args.output);
     }
+    fprintf(stderr, "XXX\n");
     {
         Timer t("TASK\tranking and bwt-ing parse and processing last-chars\t");
         p.bwt_of_parse(
-                [&](const std::vector<char>& bwlast, 
-                    const std::vector<parse_t::UIntType>& ilist, 
+                [&](const std::vector<char>& bwlast,
+                    const std::vector<parse_t::UIntType>& ilist,
                     const std::vector<parse_t::UIntType>& bwsai) {
                     vec_to_file<char>(bwlast, args.output + "." + EXTBWLST);
                     vec_to_file<parse_t::UIntType>(ilist, args.output + "." + EXTILIST);
@@ -297,7 +261,7 @@ size_t read_single_int_str(const char* fname, const char* ext) {
     size_t x = 0;
     if (getline(&line, &x, n_fp) != -1) {
         n = std::atol(line);
-    } else { 
+    } else {
         die("could not read '.n' file");
         return 0;
     }

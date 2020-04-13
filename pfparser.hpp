@@ -456,7 +456,7 @@ struct PfParser {
         return doc_names_;
     }
 
-    const std::vector<UIntType> get_occs() {
+    const std::vector<UIntType> get_occs() const {
         std::vector<UIntType> occs;
         occs.reserve(sorted_phrases_.size());
         for (auto phrase: sorted_phrases_) {
