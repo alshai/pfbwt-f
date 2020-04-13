@@ -4,7 +4,7 @@
 #include <string>
 #include <getopt.h>
 #include <chrono>
-#include "pfbwt-f.hpp"
+#include "pfbwt.hpp"
 #include "pfparser.hpp"
 #include "hash.hpp"
 #include "file_wrappers.hpp"

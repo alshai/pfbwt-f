@@ -66,6 +66,7 @@ void vec_to_file(const std::vector<T>& vec, size_t nelems, std::string fname) {
 
 void dict_to_file(const std::vector<const char*>& phrases, std::string fname) {
     FILE* dict_fp = fopen(fname.data(), "wb");
+    if (dict_fp == NULL) die("unable to open dict file");
     for (auto phrase: phrases) {
         if (fwrite(phrase, 1, strlen(phrase), dict_fp) != strlen(phrase))
             die("Error writing to DICT file\n");
@@ -75,7 +76,6 @@ void dict_to_file(const std::vector<const char*>& phrases, std::string fname) {
     if (fputc(EndOfDict, dict_fp) == EOF) die("Error writing EndOfDict to DICT file");
     if (fclose(dict_fp)) die("Error closing DICT file");
     else fprintf(stderr, "DICT written to %s\n", fname.data());
-    fclose(dict_fp);
     fprintf(stderr, "dict_to_file END\n");
 }
 

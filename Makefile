@@ -5,7 +5,7 @@ CC=gcc
 CXX=g++
 
 # main executables 
-EXECS=pfbwt-f pfbwt-f64
+EXECS=pfbwt-f64 pfbwt-f
 
 # targets not producing a file declared phony
 .PHONY: all clean
@@ -18,10 +18,10 @@ gsa/gsacak.o: gsa/gsacak.c gsa/gsacak.h
 gsa/gsacak64.o: gsa/gsacak.c gsa/gsacak.h
 	$(CC) $(CFLAGS) -c -o $@ $< -DM64
 
-pfbwt-f: pfbwt-f.cpp utils.o gsa/gsacak.o pfbwt-f.hpp pfparser.hpp file_wrappers.hpp
+pfbwt-f: pfbwt-f.cpp utils.o gsa/gsacak.o pfbwt.hpp pfparser.hpp file_wrappers.hpp
 	$(CXX) $(CXX_FLAGS) -I./ -I./sdsl-lite/include -o $@ pfbwt-f.cpp utils.o gsa/gsacak.o -lz
 
-pfbwt-f64: pfbwt-f.cpp utils.o gsa/gsacak64.o pfbwt-f.hpp pfparser.hpp file_wrappers.hpp
+pfbwt-f64: pfbwt-f.cpp utils.o gsa/gsacak64.o pfbwt.hpp pfparser.hpp file_wrappers.hpp pfbwt_io.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -I./ -I./sdsl-lite/include -o $@ pfbwt-f.cpp utils.o gsa/gsacak64.o -lz
 
 simplebwt: simplebwt.o gsa/gsacak.o
