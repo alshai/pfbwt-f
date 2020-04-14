@@ -13,17 +13,20 @@ Some modifications / additions from the original code:
 * Parsing and BWT-construction steps are now callable from C++11 code.
 
 * Uses the [Wang hash](http://www.burtleburtle.net/bob/hash/integer.html)
-instead of a rolling Rabin-Karp hash to select phrases in the parsing step.
-(need to be careful when there are a lot of Ns in the input)
+  instead of a rolling Rabin-Karp hash to select phrases in the parsing step.
+  (need to be careful when there are a lot of Ns in the input, use
+  `--non-acgt-to-a` in this case
 
-* Modifies some data structures during parse step for modest time/memory savings
+* Modifies some data structures during parse step to present a simple user
+  interface and introduce modest time/memory savings
 
 * Option to use mmap (memory mapping) on workspace data. Allows for BWT to be
-constructed **even when the size of the workspace needed for this algorithm exceeds RAM capacity**!
+  constructed **even when the size of the workspace needed for this algorithm exceeds RAM capacity**!
+
+* **NEW** - Option to merge separate prefix-free parses from their `.dict` and `.parse` files. Use `merge_pfp` to do this.
 
 Features that will be added soon.
 
-* ~~Full,~~ Sampled and/or Run-Length Suffix Array.
 * Document Array and other SA-related data structures.
 * Thread support
 * Clearer separation of 32-bit and 64-bit modes
@@ -93,4 +96,18 @@ usage
         --parse-only    only produce parse (dict, occ, ilist, last, bwlast files), do not build BWT
 
         -h              print this help message
+```
+
+## Working directly with prefix-free parses
+
+To create just the parse of a single fasta file, do:
+
+```
+./pfbwt-f --parse-only [<options>] <seq.fa>
+```
+
+to merge multiple parses: 
+
+```
+merge_pfp [--output] <parse prefix 1> <parse prefix2> ...
 ```
