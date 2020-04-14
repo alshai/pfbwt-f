@@ -13,11 +13,13 @@ extern "C" {
 #include <utils.h>
 }
 
+constexpr pfbwtf::PfParserParams global_params(10, 100, true, true, false, false, false);
+
 bool parser_cmp(const pfbwtf::PfParser<>& lhs, const pfbwtf::PfParser<>& rhs, std::string msg, FILE* log) {
-    // if (lhs.get_pos() != rhs.get_pos()) {
-    //     fprintf(log, "%s: %s: pos mismatch %lu vs %lu\n", msg.data(), __func__, lhs.get_pos(), rhs.get_pos());
-    //     return false;
-    // }
+    if (lhs.get_pos() != rhs.get_pos()) {
+        fprintf(log, "%s: %s: pos mismatch %lu vs %lu\n", msg.data(), __func__, lhs.get_pos(), rhs.get_pos());
+        return false;
+    }
     if (lhs.get_parse_ranks().size() != rhs.get_parse_ranks().size()) {
         fprintf(log, "%s: %s: parse_ranks_ size mismatch %lu vs %lu\n", msg.data(), __func__, lhs.get_parse_ranks().size(), rhs.get_parse_ranks().size());
         for (auto p: lhs.get_parse_ranks()) { fprintf(log, "%d ", p); } fprintf(log, "\n");
@@ -83,13 +85,29 @@ bool parser_cmp(const pfbwtf::PfParser<>& lhs, const pfbwtf::PfParser<>& rhs, st
             }
         }
     }
+    if (lhs.get_params().store_docs) {
+        const auto& lhs_doc_starts = lhs.get_doc_starts();
+        const auto& rhs_doc_starts = rhs.get_doc_starts();
+        const auto& lhs_doc_names = lhs.get_doc_names();
+        const auto& rhs_doc_names = rhs.get_doc_names();
+        for (size_t i = 0; i < lhs_doc_starts.size(); ++i) {
+            if (lhs_doc_starts[i] != rhs_doc_starts[i]) {
+                fprintf(log, "%s: %s: doc_starts_[%lu] mismatch; %lu vs %lu\n", msg.data(), __func__, i, lhs_doc_starts[i], rhs_doc_starts[i]);
+                return false;
+            }
+            if (lhs_doc_names[i] != rhs_doc_names[i]) {
+                fprintf(log, "%s: %s: doc_names_[%lu] mismatch; %s vs %s\n", msg.data(), __func__, i, lhs_doc_names[i].data(), rhs_doc_names[i].data());
+                return false;
+            }
+        }
+    }
     return true;
 }
 
 // makes sure that the loaded file's aux data structures are properly generated
 bool parser_test_load(FILE* log) {
     // load parser
-    pfbwtf::PfParserParams params;
+    pfbwtf::PfParserParams params(global_params);
     params.get_sai = true;
     std::string prefix = "tests/random_examples/random.all.fa";
     pfbwtf::PfParser<> p_loaded(load_parser(prefix, params));
@@ -135,7 +153,7 @@ bool parser_test_load(FILE* log) {
 }
 
 bool parser_test_eq(FILE* log) {
-    pfbwtf::PfParserParams params;
+    pfbwtf::PfParserParams params(global_params);
     params.get_sai = true;
     pfbwtf::PfParser<> truth(load_parser("tests/random_examples/random.1.fa", params));
     pfbwtf::PfParser<> test;
@@ -145,16 +163,17 @@ bool parser_test_eq(FILE* log) {
 
 // mult. seqs in one fasta file
 int parser_test_add_fasta1(FILE* log) {
-    pfbwtf::PfParserParams params;
+    pfbwtf::PfParserParams params(global_params);
     params.get_sai = true;
     pfbwtf::PfParser<> truth(load_parser("tests/random_examples/random.all.fa", params));
     pfbwtf::PfParser<> test(parse_from_fasta("tests/random_examples/random.all.fa", params));
+    fprintf(log, "%s: n: %lu %lu\n", __func__, truth.get_n(), test.get_n());
     return parser_cmp(truth, test, std::string(__func__), log);
 }
 
 // checks if loading seqs from sequence of files matches loading all seqs from a single file
 bool parser_test_add_fasta2(FILE* log) {
-    pfbwtf::PfParserParams params;
+    pfbwtf::PfParserParams params(global_params);
     params.get_sai = true;
     pfbwtf::PfParser<> truth(load_parser("tests/random_examples/random.all.fa", params));
     pfbwtf::PfParser<> test(params);
@@ -167,7 +186,7 @@ bool parser_test_add_fasta2(FILE* log) {
 }
 
 bool parser_test_pluseq(FILE* log) {
-    pfbwtf::PfParserParams params;
+    pfbwtf::PfParserParams params(global_params);
     params.get_sai = true;
     pfbwtf::PfParser<> truth(load_parser("tests/random_examples/random.all.fa", params));
     pfbwtf::PfParser<> test(params);
@@ -181,7 +200,7 @@ bool parser_test_pluseq(FILE* log) {
 }
 
 bool parser_test_get_n(FILE* log) {
-    pfbwtf::PfParserParams params;
+    pfbwtf::PfParserParams params(global_params);
     params.get_sai = true;
     std::string fname = "tests/random_examples/random.all.fa";
     pfbwtf::PfParser<> p(load_parser(fname, params));
@@ -194,7 +213,7 @@ bool parser_test_get_n(FILE* log) {
 
 constexpr int NMERGE = 10;
 bool parser_test_merge(FILE* log) {
-    pfbwtf::PfParserParams params;
+    pfbwtf::PfParserParams params(global_params);
     params.get_sai = true;
     pfbwtf::PfParser<> to_merge[250 / NMERGE];
     std::string prefix = "tests/random_examples/random.";
@@ -219,6 +238,13 @@ bool print_test(std::string msg, bool b) {
     return b;
 }
 
+bool test_load_docs() {
+    auto pair = load_doc_info<uint64_t>("tests/random_examples/random.all.fa.docs");
+    for (auto n: pair.first) { fprintf(stderr, "%s", n.data()); } fprintf(stderr, "\n");
+    for (auto n: pair.second) { fprintf(stderr, "%lu", n); } fprintf(stderr, "\n");
+    return false;
+}
+
 int main() {
     FILE* log = fopen("test_parser.log", "w");
     print_test("load_from_disk", parser_test_load(log));
@@ -228,7 +254,7 @@ int main() {
     print_test("+=", parser_test_pluseq(log));
     print_test("n", parser_test_get_n(log));
     print_test("merge", parser_test_merge(log));
-
+    // test_load_docs();
     fclose(log);
     return 0;
 }

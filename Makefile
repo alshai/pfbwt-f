@@ -4,7 +4,7 @@ CFLAGS=-O3 -Wall -std=c99 -g
 CC=gcc
 CXX=g++
 
-# main executables 
+# main executables
 EXECS=pfbwt-f64 pfbwt-f
 
 # targets not producing a file declared phony

@@ -6,6 +6,7 @@
 #include "file_wrappers.hpp"
 #include "pfparser.hpp"
 extern "C" {
+#include "utils.h"
 #ifndef AC_KSEQ_H
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread);
@@ -164,13 +165,38 @@ std::vector<const char*> load_parse(std::string parse_fname) {
     return parse;
 }
 
+template<typename U>
+std::pair<std::vector<std::string>, std::vector<U>> load_doc_info(std::string fname) {
+    std::vector<std::string> names;
+    std::vector<U> starts;
+    FILE* fp = fopen(fname.data(), "r");
+    if (fp == NULL) die("error opening doc file");
+    char* line = NULL;
+    char* tok, *end;
+    size_t n;
+    int l;
+    while ((l = getline(&line, &n, fp) >= 0)) {
+        tok = strtok(line, " ");
+        names.push_back(tok);
+        if (tok == NULL) die("error parsing doc file\n");
+        tok = strtok(NULL, " ");
+        starts.push_back(std::strtoul(tok, &end, 10));
+    }
+    return std::make_pair(names, starts);
+}
+
 /* loads parser from .dict and .parse files */
 pfbwtf::PfParser<> load_parser(std::string prefix, pfbwtf::PfParserParams p) {
-    // using UIntType = pfbwtf::PfParser<>::UIntType;
+    using UIntType = pfbwtf::PfParser<>::UIntType;
     using IntType = pfbwtf::PfParser<>::IntType;
     auto dict = load_dict(prefix + ".dict");
     auto parse_ranks = load_parse_ranks<IntType>(prefix + ".parse");
-    return pfbwtf::PfParser<>(p, dict, std::move(parse_ranks));
+    if (p.store_docs) {
+        auto doc_pair = load_doc_info<UIntType>(prefix + ".docs");
+        return pfbwtf::PfParser<>(p, dict, std::move(parse_ranks), std::move(doc_pair.second), std::move(doc_pair.first));
+    } else {
+        return pfbwtf::PfParser<>(p, dict, std::move(parse_ranks));
+    }
 }
 
 /* saves parser to .dict, .occ, and .parse files */

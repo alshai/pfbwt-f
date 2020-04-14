@@ -215,7 +215,6 @@ size_t run_parser(Args args) {
         p.finalize();
         save_parser(p, args.output);
     }
-    fprintf(stderr, "XXX\n");
     {
         Timer t("TASK\tranking and bwt-ing parse and processing last-chars\t");
         p.bwt_of_parse(
@@ -241,7 +240,7 @@ size_t run_parser(Args args) {
         vec_to_file(p.get_ntab(), args.output + ".ntab");
     }
     std::FILE* n_fp = open_aux_file(args.output.data(), "n", "w");
-    fprintf(n_fp, "%lu\n", n);
+    fprintf(n_fp, "n = %lu\n", n);
     fclose(n_fp);
     return n;
 }
