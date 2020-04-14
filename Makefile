@@ -36,6 +36,9 @@ dump_intfile: scripts/dump_intfile.cpp
 test_parser: pfparser.hpp pfbwt_io.hpp tests/test_parser.cpp utils.o
 	$(CXX) $(CXX_FLAGS) -DM64 -g -o $@ tests/test_parser.cpp utils.o -lz
 
+merge_pfp: merge_pfp.cpp pfparser.hpp pfbwt_io.hpp utils.o
+	$(CXX) $(CXX_FLAGS) -DM64 -g -o $@ merge_pfp.cpp utils.o -lz
+
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
