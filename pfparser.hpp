@@ -310,7 +310,7 @@ struct PfParser {
         uint64_t total_l(0);
 #endif
         // ntab_entry ne;
-        char c('A'), pc('A');
+        char c('A'); // , pc('A');
         std::string phrase(last_phrase_);
         if (!pos_) {
             phrase.append(1, Dollar);
@@ -318,10 +318,9 @@ struct PfParser {
         }
         Hasher hf(params_.w);
         while (( l = kseq_read(seq) ) >= 0) {
-            nseqs_ += 1;
             if (params_.store_docs) {
-                // subtract 1 Dollar
-                doc_starts_.push_back(pos_ - 1);
+                // subtract 1 Dollar. idk why we need to add w
+                doc_starts_.push_back(get_n() ? get_n() - 1 + params_.w : 0);
                 doc_names_.push_back(seq->name.s);
             }
 #if !M64
@@ -350,7 +349,7 @@ struct PfParser {
                     phrase.erase(0, phrase.size()-params_.w);
                 }
                 ++pos_;
-                pc = c;
+                // pc = c;
             }
             /*
             // record last [^ACGT] run if applicable
@@ -358,6 +357,7 @@ struct PfParser {
                 ntab_.push_back(ne);
             }
             */
+            nseqs_ += 1;
         }
         last_phrase_ = phrase;
         // phrase.append(params_.w, Dollar);
@@ -528,7 +528,7 @@ struct PfParser {
 
     size_t get_n() {  // includes As at end of each seq
         //             Dollars
-        return pos_ - params_.w;
+        return pos_ >= params_.w ? pos_ - params_.w : 0;
     }
 
     const std::vector<UIntType>& get_sai() const { return sai_; }

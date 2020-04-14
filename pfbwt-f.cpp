@@ -213,7 +213,7 @@ size_t run_parser(Args args) {
     {
         Timer t("TASK\tfinalizing parse, writing dict, occs, and ranks\t");
         p.finalize();
-        save_parser(p, args.output);
+        pfbwtf::save_parser(p, args.output);
     }
     {
         Timer t("TASK\tranking and bwt-ing parse and processing last-chars\t");
@@ -221,25 +221,25 @@ size_t run_parser(Args args) {
                 [&](const std::vector<char>& bwlast,
                     const std::vector<parse_t::UIntType>& ilist,
                     const std::vector<parse_t::UIntType>& bwsai) {
-                    vec_to_file<char>(bwlast, args.output + "." + EXTBWLST);
-                    vec_to_file<parse_t::UIntType>(ilist, args.output + "." + EXTILIST);
-                    if (args.sa || args.rssa) vec_to_file<parse_t::UIntType>(bwsai, args.output + "." + EXTBWSAI);
+                    pfbwtf::vec_to_file<char>(bwlast, args.output + "." + EXTBWLST);
+                    pfbwtf::vec_to_file<parse_t::UIntType>(ilist, args.output + "." + EXTILIST);
+                    if (args.sa || args.rssa) pfbwtf::vec_to_file<parse_t::UIntType>(bwsai, args.output + "." + EXTBWSAI);
                 });
     }
-    if (args.print_docs) {
-        std::FILE* doc_fp = open_aux_file(args.output.data(), "docs", "w");
-        const auto& doc_names = p.get_doc_names();
-        const auto& doc_starts = p.get_doc_starts();
-        for (size_t i = 0; i < doc_starts.size(); ++i) {
-            fprintf(doc_fp, "%s %lu\n", doc_names[i].data(), static_cast<uint64_t>(doc_starts[i]));
-        }
-        fclose(doc_fp);
-    }
+    // if (args.print_docs) {
+    //     std::FILE* doc_fp = open_aux_file(args.output.data(), "docs", "w");
+    //     const auto& doc_names = p.get_doc_names();
+    //     const auto& doc_starts = p.get_doc_starts();
+    //     for (size_t i = 0; i < doc_starts.size(); ++i) {
+    //         fprintf(doc_fp, "%s %lu\n", doc_names[i].data(), static_cast<uint64_t>(doc_starts[i]));
+    //     }
+    //     fclose(doc_fp);
+    // }
     // TODO: dump ntab to file if applicable.
     if (args.trim_non_acgt) {
-        vec_to_file(p.get_ntab(), args.output + ".ntab");
+        pfbwtf::vec_to_file(p.get_ntab(), args.output + ".ntab");
     }
-    std::FILE* n_fp = open_aux_file(args.output.data(), "n", "w");
+    std::FILE* n_fp = fopen((args.output + ".n").data(), "w");
     fprintf(n_fp, "n = %lu\n", n);
     fclose(n_fp);
     return n;

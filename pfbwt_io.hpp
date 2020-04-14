@@ -13,6 +13,8 @@ KSEQ_INIT(gzFile, gzread);
 #endif
 }
 
+namespace pfbwtf {
+
 size_t get_fasta_length(std::string fname) {
     FILE* fp = fopen(fname.data(), "r");
     char* line = NULL;
@@ -76,8 +78,6 @@ void dict_to_file(const std::vector<const char*>& phrases, std::string fname) {
     }
     if (fputc(EndOfDict, dict_fp) == EOF) die("Error writing EndOfDict to DICT file");
     if (fclose(dict_fp)) die("Error closing DICT file");
-    else fprintf(stderr, "DICT written to %s\n", fname.data());
-    fprintf(stderr, "dict_to_file END\n");
 }
 
 template<typename T>
@@ -199,7 +199,16 @@ pfbwtf::PfParser<> load_parser(std::string prefix, pfbwtf::PfParserParams p) {
     }
 }
 
-/* saves parser to .dict, .occ, and .parse files */
+template<typename U>
+void docs_to_file(std::string fname, const std::vector<std::string>& doc_names, const std::vector<U>& doc_starts) {
+    FILE* doc_fp = fopen(fname.data(), "w");
+    for (size_t i = 0; i < doc_starts.size(); ++i) {
+        fprintf(doc_fp, "%s %lu\n", doc_names[i].data(), doc_starts[i]);
+    }
+    fclose(doc_fp);
+}
+
+/* saves parser to .dict, .occ, and .parse files (and .docs if applicable)*/
 void save_parser(const pfbwtf::PfParser<>& parser, std::string prefix) {
     std::string dict_fname = prefix + ".dict";
     std::string occ_fname = prefix + ".occ";
@@ -207,6 +216,10 @@ void save_parser(const pfbwtf::PfParser<>& parser, std::string prefix) {
     dict_to_file(parser.get_sorted_phrases(), dict_fname);
     vec_to_file(parser.get_occs(), occ_fname);
     vec_to_file(parser.get_parse_ranks(), parser.get_parse_size(), parse_ranks_fname);
+    if (parser.get_params().store_docs) { 
+        std::string docs_fname = prefix + ".docs";
+        docs_to_file(docs_fname, parser.get_doc_names(), parser.get_doc_starts());
+    }
 }
 
 pfbwtf::PfParser<> parse_from_fasta(std::string fasta_fname, pfbwtf::PfParserParams p) {
@@ -215,4 +228,4 @@ pfbwtf::PfParser<> parse_from_fasta(std::string fasta_fname, pfbwtf::PfParserPar
     parser.finalize();
     return parser;
 }
-
+} // namespace
