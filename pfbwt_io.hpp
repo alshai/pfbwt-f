@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <tuple>
+#include <sys/stat.h>
 #include "file_wrappers.hpp"
 #include "pfparser.hpp"
 extern "C" {
@@ -228,4 +229,34 @@ pfbwtf::PfParser<> parse_from_fasta(std::string fasta_fname, pfbwtf::PfParserPar
     parser.finalize();
     return parser;
 }
+
+int parse_files_exist(std::string prefix) {
+    std::string dict_prefix = prefix + ".dict";
+    std::string parse_prefix = prefix + ".parse";
+    struct stat buffer;
+    return (!stat(dict_prefix.data(), &buffer) &&  !stat(parse_prefix.data(), &buffer));
+}
+
+int file_exists(std::string fname) {
+    struct stat buffer;
+    return (!stat(fname.data(), &buffer));
+}
+
+PfParser<> load_or_generate_parser_w_log(std::string prefix, PfParserParams params, FILE* fp = stderr) {
+    PfParser<> parser;
+    if (parse_files_exist(prefix)) {
+        fprintf(fp, "loading %s from file\n", prefix.data());
+        parser += load_parser(prefix, params);
+    } else {
+        fprintf(fp, "generating parse for %s\n", prefix.data());
+        if (file_exists(prefix)) {
+            parser += parse_from_fasta(prefix, params);
+        } else {
+            // TODO: figure out how to exit a threaded program here and do cleanup
+            fprintf(fp, "ERROR: %s not found, cannot add it to parse!\n", prefix.data());
+        }
+    }
+    return parser;
+}
+
 } // namespace
