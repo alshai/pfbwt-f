@@ -3,6 +3,7 @@
 #include <string>
 #include <getopt.h>
 #include "marker_array/vcf_scanner.hpp"
+#include "marker_array/marker_index.hpp"
 
 struct Args {
     int w = 10;
@@ -91,101 +92,6 @@ Args parse_args(int argc, char** argv) {
     return args;
 }
 
-struct Marker {
-    Marker() {}
-    Marker(size_t p, size_t r, size_t a) : textpos(p), refpos(r), allele(a) {}
-    size_t textpos;
-    size_t refpos;
-    size_t allele;
-};
-
-class MarkerWindow : public std::deque<Marker> {
-
-    using MDeq = std::deque<Marker>;
-    public:
-
-    using iterator = MDeq::iterator;
-
-    MarkerWindow() {}
-    MarkerWindow(size_t w) : w_(w) {}
-
-    // returns end() if last element is still within window
-    // otherwise, return iterator to last element within begin()->textpos+w
-    iterator end_of_window() {
-        size_t spos = MDeq::begin()->textpos;
-        for (auto it = MDeq::begin(); it != MDeq::end() ; ++it) {
-            if (it->textpos >= spos + w_) {
-                return it;
-            }
-        }
-        return MDeq::end();
-    }
-
-    void push_back(size_t p, size_t r, size_t a) {
-        std::deque<Marker>::push_back(Marker(p,r,a));
-    }
-
-    size_t get_pos() const { return pos_; }
-    void set_pos(size_t p) { pos_ = p; }
-    int get_w() const { return w_; }
-    void set_w(int w) { w_ = w; }
-
-    private:
-
-    size_t pos_ = 0;
-    int w_ = 10;
-};
-
-constexpr size_t zero = 0;
-constexpr size_t negone = -1;
-
-void update_marker_index(size_t rpos, int32_t gt, size_t mpos, MarkerWindow& win, FILE* ofp, FILE* log) {
-    if (gt > -1) win.push_back(mpos, rpos, gt);
-    size_t pos = win.get_pos();
-    // skip pos ahead if needed
-    if (pos < win.front().textpos - win.get_w() + 1) {
-        pos = win.front().textpos - win.get_w() + 1;
-        win.set_pos(pos);
-    }
-    // figure out if window is completed
-    if (gt > -1) {
-        typename MarkerWindow::iterator win_end;
-        while ((win_end = win.end_of_window()) != win.end()) {
-            // process window every position upto and including pos
-            for (; pos <= win.front().textpos; ++pos) {
-                win.set_pos(pos);
-                fwrite(&pos, sizeof(size_t), 1, ofp);
-                fprintf(log, "%lu: ", pos);
-                for (auto it = win.begin(); it != win_end; ++it) {
-                    if (pos <= it->textpos && it->textpos < pos + win.get_w()) {
-                        fprintf(log, "(%lu %lu %lu) ", it->textpos, it->refpos, it->allele);
-                        fwrite(&(it->refpos), sizeof(size_t), 1, ofp);
-                        fwrite(&(it->allele), sizeof(size_t), 1, ofp);
-                    } else break;
-                }
-                fwrite(&negone, sizeof(size_t), 1, ofp);
-                fprintf(log, "\n");
-            }
-            win.pop_front();
-        }
-    } else { // last rec in file
-        for (; pos <= win.front().textpos; ++pos) {
-            win.set_pos(pos);
-            fwrite(&pos, sizeof(size_t), 1, ofp);
-            fprintf(log, "%lu: ", pos);
-            for (auto it = win.begin(); it != win.end(); ++it) {
-                if (pos <= it->textpos && it->textpos < pos + win.get_w()) {
-                    fprintf(log, "(%lu %lu %lu) ", it->textpos, it->refpos, it->allele);
-                    fwrite(&(it->refpos), sizeof(size_t), 1, ofp);
-                    fwrite(&(it->allele), sizeof(size_t), 1, ofp);
-                } else break;
-            }
-            fwrite(&negone, sizeof(size_t), 1, ofp);
-            fprintf(log, "\n");
-        }
-    }
-}
-
 void update_sequence(char* seq, int rlen, bcf1_t* rec, int ppos, int32_t gt, FILE* ofp, FILE* log) {
     (void) log;
     if (rec != NULL && gt > -1)  {
@@ -202,7 +108,6 @@ void scan_vcf_sample(Args args, std::string sample) {
     VCFScannerArgs vargs(ArgsToVCFScannerArgs(args));
     vargs.sample = sample;
     FILE *log, *ma_fp, *fa_fp;
-    MarkerWindow winv;
     int ppos = 0;
     int i = args.haplotype;
     std::string fa_fname = args.out + "." + sample + "." + std::to_string(i) + ".fa";
@@ -213,19 +118,19 @@ void scan_vcf_sample(Args args, std::string sample) {
     ma_fp = fopen(ma_fname.data(), "wb");
     fa_fp = fopen(fa_fname.data(), "w");
     fprintf(fa_fp, ">%s\n", fa_header.data());
-    winv.set_w(args.w);
+    MarkerIndexWriter mi_writer(args.w, ma_fp, log);
     int ppos_after = 0;
     auto out_fn = [&](bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int ref_len) {
         if (rec != NULL && rec->pos != ppos) { // default cause
-            update_marker_index(rec->pos, gtv[i], posv[i], winv, ma_fp, log);
-            update_sequence(ref_seq, ref_len, rec, ppos_after, gtv.size() ? gtv[i] : -1, fa_fp, log);
+            mi_writer.update(rec->pos, gtv[i], posv[i]);
+            update_sequence(ref_seq, ref_len, rec, ppos_after, gtv[i], fa_fp, log);
             ppos = rec->pos;
             ppos_after = ppos + strlen(rec->d.allele[0]);
         } else if (rec == NULL) { // last case
-            update_marker_index(ref_len, -1, posv[i], winv, ma_fp, log);
-            update_sequence(ref_seq, ref_len, NULL, ppos_after,  -1, fa_fp, log);
+            mi_writer.update(ref_len, -1, posv[i]);
+            update_sequence(ref_seq, ref_len, NULL, ppos_after, -1, fa_fp, log);
         } else {
-            fprintf(stderr, "warning: overlapping variants at %d. skipping... \n", rec->pos); 
+            fprintf(stderr, "warning: overlapping variants at %d. skipping... \n", rec->pos);
         }
     };
     VCFScanner v(vargs);
