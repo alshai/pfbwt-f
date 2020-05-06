@@ -8,14 +8,15 @@
 struct Args {
     int w = 10;
     std::string fa_fname;
-    std::vector<std::string> vcf_fnames = {"/home/taher/r-index2/pfbwt-f/data/chr21.snps.trunc.vcf.gz"};
+    std::vector<std::string> vcf_fnames = {"/home/taher/r-index2/pfbwt-f/data/chr21.snps.vcf.gz"};
     std::vector<std::string> contigs = {"21"};
     std::vector<std::string> samples = {"HG00096"};
     std::string ref_fasta = "/home/taher/pfbwt-f/data/chr21.fa";
     std::string out = "out";
-    int nthreads = 2;
+    int nthreads = 1;
     int verb = 0;
     int haplotype = 0;
+    int ref_only = 0;
 };
 
 VCFScannerArgs ArgsToVCFScannerArgs(Args args) {
@@ -41,11 +42,18 @@ Args parse_args(int argc, char** argv) {
         {"threads", required_argument, NULL, 't'},
         {"contigs", required_argument, NULL, 'c'},
         {"samples", required_argument, NULL, 'S'},
-        {"verbose", required_argument, NULL, 'v'}
+        // {"sample", required_argument, NULL, 's'},
+        {"verbose", no_argument, NULL, 'v'},
+        {"fasta", required_argument, NULL, 'f'},
+        {"ref-only", no_argument, NULL, 'r'}
     };
 
-    while ((c = getopt_long( argc, argv, "w:o:t:c:S:vH:", lopts, NULL) ) != -1) {
+    while ((c = getopt_long( argc, argv, "rf:w:o:t:c:S:vH:", lopts, NULL) ) != -1) {
         switch(c) {
+            case 'f':
+                args.ref_fasta = optarg; break;
+            // case 's':
+            //     args.samples = {optarg}; break;
             case 'w':
                 args.w = atoi(optarg); break;
             case 'o':
@@ -71,6 +79,8 @@ Args parse_args(int argc, char** argv) {
             case 'H':
                 args.haplotype = atoi(optarg);
                 break;
+            case 'r':
+                args.ref_only = 1; break;
             case '?':
                 fprintf(stderr,  "Unknown option.\n");
                 exit(1);
@@ -107,21 +117,32 @@ void update_sequence(char* seq, int rlen, bcf1_t* rec, int ppos, int32_t gt, FIL
 void scan_vcf_sample(Args args, std::string sample) {
     VCFScannerArgs vargs(ArgsToVCFScannerArgs(args));
     vargs.sample = sample;
-    FILE *log, *ma_fp, *fa_fp;
+    FILE *log = NULL, *ma_fp = NULL, *fa_fp = NULL;
     int ppos = 0;
     int i = args.haplotype;
     std::string fa_fname = args.out + "." + sample + "." + std::to_string(i) + ".fa";
     std::string fa_header = args.out + "." + sample + "." + std::to_string(i);
     std::string ma_fname = args.out + "." + sample + "." + std::to_string(i) + ".ma2";
     std::string log_fname = args.out + "." + sample + "." + std::to_string(i) + ".log";
+    if (args.ref_only) {
+        ma_fname = args.out + ".ref.ma2";
+        log_fname = args.out + ".ref.log";
+    }
     log = fopen(log_fname.data(), "w");
     ma_fp = fopen(ma_fname.data(), "wb");
-    fa_fp = fopen(fa_fname.data(), "w");
-    fprintf(fa_fp, ">%s\n", fa_header.data());
+    if (!args.ref_only) fa_fp = fopen(fa_fname.data(), "w");
+    if (!args.ref_only) fprintf(fa_fp, ">%s\n", fa_header.data());
     MarkerIndexWriter mi_writer(args.w, ma_fp, log);
     int ppos_after = 0;
     auto out_fn = [&](bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int ref_len) {
-        if (rec != NULL && rec->pos != ppos) { // default cause
+        if (args.ref_only) {
+            // fprintf(stderr, "%ld\n", rec->pos);
+            int pos = rec == NULL ? ref_len : rec->pos;
+            int gt = rec == NULL ? -1 : 0;
+            mi_writer.update(pos, gt, pos);
+            // don't run update_sequence
+        }
+        else if (rec != NULL && rec->pos != ppos) { // default cause
             mi_writer.update(rec->pos, gtv[i], posv[i]);
             update_sequence(ref_seq, ref_len, rec, ppos_after, gtv[i], fa_fp, log);
             ppos = rec->pos;
@@ -137,14 +158,13 @@ void scan_vcf_sample(Args args, std::string sample) {
     v.vcf_for_each(out_fn);
     fprintf(stderr, "done loop\n");
     fclose(ma_fp);
-    fclose(fa_fp);
+    if (!args.ref_only) fclose(fa_fp);
 }
 
 int main(int argc, char** argv) {
-    (void) argc;
-    (void) argv;
-    Args args;
-    for (auto s: args.samples) {
+    Args args(parse_args(argc, argv));
+    if (args.ref_only) scan_vcf_sample(args, "");
+    else for (auto s: args.samples) {
         scan_vcf_sample(args,s);
     }
     return 0;

@@ -1,5 +1,5 @@
 # compilation flags
-CXX_FLAGS=-std=c++11 -Ofast -Wall -Wextra -g -march=native
+CXX_FLAGS=-std=c++11 -Ofast -Wall -Wextra -march=native -g
 CFLAGS=-O3 -Wall -std=c99 -g
 CC=gcc
 CXX=g++
@@ -34,10 +34,19 @@ dump_intfile: scripts/dump_intfile.cpp
 	$(CXX) $(CXX_FLAGS) -o $@ $<
 
 test_parser: pfparser.hpp pfbwt_io.hpp tests/test_parser.cpp utils.o
-	$(CXX) $(CXX_FLAGS) -DM64 -g -o $@ tests/test_parser.cpp utils.o -lz
+	$(CXX) $(CXX_FLAGS) -DM64 -o $@ tests/test_parser.cpp utils.o -lz
 
 merge_pfp: merge_pfp.cpp pfparser.hpp pfbwt_io.hpp utils.o
-	$(CXX) $(CXX_FLAGS) -DM64 -g -o $@ merge_pfp.cpp utils.o -lz -lpthread
+	$(CXX) $(CXX_FLAGS) -DM64 -o $@ merge_pfp.cpp utils.o -lz -lpthread
+
+vcf_scan: marker_array/vcf_scan.cpp marker_array/vcf_scanner.hpp marker_array/marker_index.hpp
+	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/vcf_scan.cpp -lhts
+
+generate_marker_array: marker_array/generate_marker_array.cpp marker_array/marker_index.hpp marker_array/marker_array.hpp
+	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/generate_marker_array.cpp
+
+merge_marker_indexes: marker_array/merge_marker_indexes.cpp
+	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/merge_marker_indexes.cpp
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<

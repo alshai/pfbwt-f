@@ -30,6 +30,7 @@ class BCFGenotype {
     }
 
     size_t operator[](size_t i) {
+        if (n_ < 0) return 0;
         return bcf_gt_allele(gt_arr_[i]);
     }
 
@@ -94,8 +95,12 @@ class VCFScanner {
                 err2 += bcf_hdr_set_samples(hdr, sample_.data(), 0);
             }
         } else {
-            err = bcf_sr_set_samples(synced_readers_, "", 0);
-            err2 = 0;
+            fprintf(stderr, "warning - dropping all samples. outputting ref alleles only\n");
+            err = bcf_sr_set_samples(synced_readers_, "-", 0);
+            for (int i = 0; i < synced_readers_->nreaders; ++i) {
+                bcf_hdr_t* hdr = synced_readers_->readers[i].header;
+                err2 += bcf_hdr_set_samples(hdr, NULL, 0);
+            }
         }
         if (!err) {
             fprintf(stderr, "failed to set samples in bcf_srs_t\n");
@@ -155,6 +160,7 @@ class VCFScanner {
             bcf1_t* rec = bcf_sr_get_line(synced_readers_, 0);
             if (rec->rid != id) break;
             int ref_len = strlen(rec->d.allele[0]);
+            // if all samples droppped, gt_buf has size <= 0
             BCFGenotype gts(hdr, rec, gt_buf); // get genotypes for this line
             for (size_t i = 0; i < posv.size(); ++i ) { // update positions for this line
                 posv[i] = posv[i] + (rec->pos - ppos) + deltav[i];

@@ -3,6 +3,19 @@
 
 #include <deque>
 #include <cstdio>
+#include <cinttypes>
+#include "parallel_hashmap/phmap.h"
+#include "file_wrappers.hpp"
+
+// false if not equal, true if equal
+template<typename T>
+bool vec_eq(std::vector<T> a, std::vector<T> b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (a[i] != b[i]) return false;
+    }
+    return true;
+}
 
 struct Marker {
     Marker() {}
@@ -61,11 +74,14 @@ class MarkerIndexWriter {
             log_ = log;
         }
 
+    ~MarkerIndexWriter() { fprintf(stderr, "n positions w/ windows: %lu\n", nwindows_); }
+
     void update(size_t rpos, int32_t gt, size_t hpos) {
         if (gt > -1) win_.push_back(hpos, rpos, gt);
         size_t pos = win_.get_pos();
         // skip pos ahead if needed
-        if (pos < win_.front().textpos - win_.get_w() + 1) {
+        if (pos < win_.front().textpos - win_.get_w() + 1) { 
+            process_run(); // automatically instigates end of run
             pos = win_.front().textpos - win_.get_w() + 1;
             win_.set_pos(pos);
         }
@@ -75,47 +91,110 @@ class MarkerIndexWriter {
             while ((win_end = win_.end_of_window()) != win_.end()) {
                 // process window every position upto and including pos
                 for (; pos <= win_.front().textpos; ++pos) {
+                    marker_vals.clear();
+                    size_t nmarkers = 0;
                     win_.set_pos(pos);
-                    fwrite(&pos, sizeof(size_t), 1, ofp_);
-                    fprintf(log_, "%lu: ", pos);
                     for (auto it = win_.begin(); it != win_end; ++it) {
                         if (pos <= it->textpos && it->textpos < pos + win_.get_w()) {
-                            fprintf(log_, "(%lu %lu %lu) ", it->textpos, it->refpos, it->allele);
-                            fwrite(&(it->refpos), sizeof(size_t), 1, ofp_);
-                            fwrite(&(it->allele), sizeof(size_t), 1, ofp_);
+                            ++nmarkers;
+                            marker_vals.push_back(it->refpos);
                         } else break;
                     }
-                    fwrite(&negone, sizeof(size_t), 1, ofp_);
-                    fprintf(log_, "\n");
+                    if (nmarkers) ++nwindows_;
+                    if (!vec_eq(pmarker_vals, marker_vals)) {
+                        process_run();
+                    } 
+                    marker_locs.push_back(pos);
+                    pmarker_vals = marker_vals;
                 }
                 win_.pop_front();
             }
         } else { // last rec in file
             for (; pos <= win_.front().textpos; ++pos) {
+                marker_vals.clear();
+                int nmarkers = 0;
                 win_.set_pos(pos);
-                fwrite(&pos, sizeof(size_t), 1, ofp_);
-                fprintf(log_, "%lu: ", pos);
                 for (auto it = win_.begin(); it != win_.end(); ++it) {
                     if (pos <= it->textpos && it->textpos < pos + win_.get_w()) {
-                        fprintf(log_, "(%lu %lu %lu) ", it->textpos, it->refpos, it->allele);
-                        fwrite(&(it->refpos), sizeof(size_t), 1, ofp_);
-                        fwrite(&(it->allele), sizeof(size_t), 1, ofp_);
+                        ++nmarkers;
+                        marker_vals.push_back(it->refpos);
                     } else break;
                 }
-                fwrite(&negone, sizeof(size_t), 1, ofp_);
-                fprintf(log_, "\n");
+                if (!vec_eq(pmarker_vals, marker_vals)) {
+                    process_run();
+                    pmarker_vals = marker_vals;
+                } 
+                marker_locs.push_back(pos);
+                process_run();
+                if (nmarkers) ++nwindows_;
+            }
+        }
+        ppos = hpos;
+    }
+
+    private:
+
+    void process_run() {
+        if (marker_locs.size() && pmarker_vals.size()) {
+            for (auto l: marker_locs) {
+                fwrite(&l, sizeof(uint64_t), 1, ofp_);
+            } 
+            fwrite(&delim_, sizeof(uint64_t), 1, ofp_);
+            for (auto v: pmarker_vals) {
+                fwrite(&v, sizeof(uint64_t), 1, ofp_);
+            } fwrite(&delim_, sizeof(uint64_t), 1, ofp_);
+        }
+        marker_locs.clear();
+    }
+
+    MarkerWindow win_;
+    FILE* ofp_, *log_;
+    int w_;
+
+    int32_t ppos;
+    uint64_t delim_ = -1;
+    size_t nwindows_ = 0;
+
+    std::vector<uint64_t> marker_locs;
+    std::vector<uint64_t> marker_vals, pmarker_vals; // switch from uint64_t to std::pair
+};
+
+// TODO: many keys have shared values. figure out how to represent this better in a hash table
+template<template<typename...>  typename HashMap=phmap::flat_hash_map,
+         template<typename>     typename ReadConType=VecFileSource>
+class MarkerIndex : public HashMap<uint64_t, std::vector<uint64_t>> {
+    
+    public:
+
+    MarkerIndex() { }
+
+    MarkerIndex(std::string fname) {
+        ReadConType<uint64_t> in_arr(fname);
+        std::vector<uint64_t> keys, values;
+        int state = 0; // 0 = keys, 1 = values
+        for (size_t i = 0; i < in_arr.size(); ++i) {
+            if (i == delim_) {
+                if (state) { // clear keys, add values to each thing
+                    for (auto k: keys) {
+                        (*this)[k] = values;
+                    }
+                    keys.clear();
+                    values.clear();
+                }
+                state = !state;
+            }
+            else if (state) { // add to values
+                values.push_back(in_arr[i]);
+            } else { // add to keys
+                keys.push_back(in_arr[i]);
             }
         }
     }
 
     private:
 
-    MarkerWindow win_;
-    FILE* ofp_, *log_;
-    int w_;
+    uint64_t delim_ = -1;
 
-    size_t zero = 0;
-    size_t negone = -1;
 };
 
 #endif
