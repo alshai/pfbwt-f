@@ -20,16 +20,17 @@ int main(int argc, char** argv) {
             exit(1);
         }
         while (fread(&x, sizeof(uint64_t), 1, fp) == 1) {
-            if (x == delim) {
-                fwrite(&delim, sizeof(uint64_t), 1, ofp);
-                state = !state;
-            } else if (state) { // value
-                fwrite(&x, sizeof(uint64_t), 1, ofp);
-                pm = x;
-            } else { // key
+            if (state < 2) { // keys are first two
                 uint64_t y = x + delta + (ref_length * k);
                 fwrite(&y, sizeof(uint64_t), 1, ofp);
                 pt = x;
+                ++state;
+            } else if (x != delim) { // values are rest
+                fwrite(&x, sizeof(uint64_t), 1, ofp);
+                pm = x;
+            } else { // separator between runs
+                fwrite(&delim, sizeof(uint64_t), 1, ofp);
+                state = 0;
             }
         }
         delta += (pt - pm);

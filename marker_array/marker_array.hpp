@@ -5,7 +5,7 @@
 #include "parallel_hashmap/phmap.h"
 #include "file_wrappers.hpp"
 
-/* 
+/*
  * things I need
  * MarkerArrayWriter(idx_fname, sa_fname)
  *
@@ -24,7 +24,7 @@ class MarkerArrayWriter {
     using UIntType = uint64_t;
 
     public:
-    
+
     using iterator = typename MarkerArr::iterator;
 
     MarkerArrayWriter() {}
@@ -102,7 +102,7 @@ class MarkerArrayWriter {
     }
 
     private:
-    
+
     // TODO: turn this into one continuous vector
     MarkerArr markers;
     CompressedBv mbv;
