@@ -208,10 +208,8 @@ class MarkerIndexWriter {
     std::vector<uint64_t> marker_vals, pmarker_vals, vbuf; // switch from uint64_t to std::pair
 };
 
-// TODO: many keys have shared values. figure out how to represent this better in a hash table
-template<template<typename...>  typename HashMap=phmap::flat_hash_map,
-         template<typename>     typename ReadConType=VecFileSource>
-class MarkerIndex : public HashMap<uint64_t, std::vector<uint64_t>> {
+template<template<typename> typename ReadConType=VecFileSource>
+class MarkerIndex {
 
     public:
 
@@ -219,69 +217,21 @@ class MarkerIndex : public HashMap<uint64_t, std::vector<uint64_t>> {
 
     MarkerIndex(std::string fname) {
         ReadConType<uint64_t> in_arr(fname);
-        uint64_t keys[2];
-        std::vector<uint64_t> values;
-        int state = 0;
-        for (size_t i = 0; i < in_arr.size(); ++i) {
-            if (in_arr[i] == delim_) {
-                if (keys[0] == keys[1]) {
-                    (*this)[keys[0]] = values;
-                } else {
-                    // fprintf(stderr, "processing keys %lu to %lu\n", keys[0], keys[1]);
-                    for (uint64_t k = keys[0]; k <= keys[1]; ++k) {
-                        (*this)[k] = values;
-                    }
-                }
-                // keys.clear();
-                values.clear();
-                state = 0;
-            }
-            else if (state < 2) {
-                keys[state++] = in_arr[i];
-            } else {
-                values.push_back(in_arr[i]);
-            }
-        }
-    }
-
-    std::vector<uint64_t> get_markers(uint64_t i) {
-        return (*this)[i];
-    }
-
-    private:
-
-    uint64_t delim_ = -1;
-
-};
-
-template<template<typename> typename ReadConType=VecFileSource>
-class MarkerIndexSuccinct {
-
-    public:
-
-    MarkerIndexSuccinct() { }
-
-    MarkerIndexSuccinct(std::string fname) {
-        ReadConType<uint64_t> in_arr(fname);
         uint64_t size = get_last_position(in_arr) + 2;
         run_starts_.resize(size);
         run_ends_.resize(size);
-        uint64_t rs = 0, re=0, nrs = 0, nre = 0;
+        uint64_t rs = 0, re=0;
         uint64_t keys[2];
         std::vector<uint64_t> values;
         int state = 0;
         for (size_t i = 0; i < in_arr.size(); ++i) {
             if (in_arr[i] == delim_) {
+                if (rs == keys[0] || re == keys[1]) {
+                    fprintf(stderr, "warning equal run start at %lu or run end at %lu\n", rs, re);
+                    exit(1);
+                }
                 run_starts_[keys[0]] = 1;
                 run_ends_[keys[1]] = 1;
-                if (rs == keys[0]) {
-                    fprintf(stderr, "warning: equal run end at %lu\n", rs);
-                    nrs++;
-                }
-                if (re == keys[1]) {
-                    fprintf(stderr, "warning equal run end at %lu\n", re);
-                    nre++;
-                }
                 rs = keys[0];
                 re = keys[1];
                 marker_windows_.push_back(values);
@@ -296,8 +246,6 @@ class MarkerIndexSuccinct {
         }
         run_starts_.init_rs();
         run_ends_.init_rs();
-        // fprintf(stderr, "%lu %lu\n", run_starts_.rank(run_starts_.size()-1), run_ends_.rank(run_ends_.size()-1));
-        // fprintf(stderr, "%lu %lu\n", nrs, nre);
     }
 
     /*
@@ -331,6 +279,52 @@ class MarkerIndexSuccinct {
     bv_rs<> run_ends_;
     std::vector<std::vector<uint64_t>> marker_windows_;
 };
+
+// template<template<typename...>  typename HashMap=phmap::flat_hash_map,
+//          template<typename>     typename ReadConType=VecFileSource>
+// class MarkerIndex : public HashMap<uint64_t, std::vector<uint64_t>> {
+// 
+//     public:
+// 
+//     MarkerIndex() { }
+// 
+//     MarkerIndex(std::string fname) {
+//         ReadConType<uint64_t> in_arr(fname);
+//         uint64_t keys[2];
+//         std::vector<uint64_t> values;
+//         int state = 0;
+//         for (size_t i = 0; i < in_arr.size(); ++i) {
+//             if (in_arr[i] == delim_) {
+//                 if (keys[0] == keys[1]) {
+//                     (*this)[keys[0]] = values;
+//                 } else {
+//                     // fprintf(stderr, "processing keys %lu to %lu\n", keys[0], keys[1]);
+//                     for (uint64_t k = keys[0]; k <= keys[1]; ++k) {
+//                         (*this)[k] = values;
+//                     }
+//                 }
+//                 // keys.clear();
+//                 values.clear();
+//                 state = 0;
+//             }
+//             else if (state < 2) {
+//                 keys[state++] = in_arr[i];
+//             } else {
+//                 values.push_back(in_arr[i]);
+//             }
+//         }
+//     }
+// 
+//     std::vector<uint64_t> get_markers(uint64_t i) {
+//         return (*this)[i];
+//     }
+// 
+//     private:
+// 
+//     uint64_t delim_ = -1;
+// 
+// };
+
 
 #endif
 
