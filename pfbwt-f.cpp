@@ -170,7 +170,9 @@ Args parse_args(int argc, char** argv) {
     if (args.in_fname != "-"  && args.output == "") {
         args.output = args.in_fname;
     }
-
+    if (args.parse_only && args.pfbwt_only) {
+        die("cannot simulatneously do parse_only and pfbwt_only");
+    }
     return args;
 }
 
@@ -352,12 +354,13 @@ int main(int argc, char** argv) {
     Args args(parse_args(argc, argv));
     if (!args.pfbwt_only)
         args.n = run_parser(args); // scan file and save relevant info to disk
-    if (args.parse_only) return 0;
-    if (args.mmap) {
-        fprintf(stderr, "workspace will be contained on disk (mmap)\n");
-        run_pfbwt<MMapFileSource, MMapFileSink>(args);
-    } else {
-        fprintf(stderr, "workspace will be contained in memory\n");
-        run_pfbwt<VecFileSource, VecFileSinkPrivate>(args);
+    if (!args.parse_only) { 
+        if (args.mmap) {
+            fprintf(stderr, "workspace will be contained on disk (mmap)\n");
+            run_pfbwt<MMapFileSource, MMapFileSink>(args);
+        } else {
+            fprintf(stderr, "workspace will be contained in memory\n");
+            run_pfbwt<VecFileSource, VecFileSinkPrivate>(args);
+        }
     }
 }

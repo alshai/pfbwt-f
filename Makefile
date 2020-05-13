@@ -51,6 +51,9 @@ merge_marker_indexes: marker_array/merge_marker_indexes.cpp
 load_marker_index: marker_array/load_marker_index.cpp marker_array/marker_index.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/load_marker_index.cpp utils.o -lsdsl
 
+marker_index_to_array: marker_array/marker_index_to_array.cpp marker_array/marker_index.hpp
+	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/marker_index_to_array.cpp utils.o -lsdsl
+
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 

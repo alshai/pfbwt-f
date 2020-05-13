@@ -96,6 +96,7 @@ class VCFScanner {
             }
         } else {
             fprintf(stderr, "warning - dropping all samples. outputting ref alleles only\n");
+            fprintf(stderr, "You can ignore the following warning that >0 samples are being kept\n");
             err = bcf_sr_set_samples(synced_readers_, "-", 0);
             for (int i = 0; i < synced_readers_->nreaders; ++i) {
                 bcf_hdr_t* hdr = synced_readers_->readers[i].header;
@@ -167,11 +168,11 @@ class VCFScanner {
                 int alt_len = strlen(rec->d.allele[gts[i]]);
                 deltav[i] = alt_len - ref_len; // negative if deletion
             }
-            out_fn(rec, gts, posv, ref_seq, ref_length);
+            out_fn(rec, gts, posv, ref_seq, ref_length, bcf_hdr_id2name(hdr, id));
             ppos = rec->pos;
         }
         BCFGenotype gts;
-        out_fn(NULL, gts, posv, ref_seq, ref_length);
+        out_fn(NULL, gts, posv, ref_seq, ref_length, bcf_hdr_id2name(hdr, id));
         free(gt_buf);
         bcf_destroy(rec);
         free(ref_seq);

@@ -68,7 +68,7 @@ class MarkerIndexWriter {
 
     public:
 
-    MarkerIndexWriter(int w, FILE* ofp, FILE* log)
+    MarkerIndexWriter(int w, FILE* ofp, FILE* log=NULL)
         : win_(w)
         , w_(w) {
             ofp_ = ofp;
@@ -85,15 +85,12 @@ class MarkerIndexWriter {
         size_t pos = win_.get_pos();
         // skip pos ahead if needed
         if (pos < win_.front().textpos - w_ + 1) {
-            fprintf(log_, "skipping from %lu ", pos);
             process_run(); // automatically instigates end of run
             pos = win_.front().textpos - w_ + 1;
-            fprintf(log_, "to %lu \n", pos);
             win_.set_pos(pos);
         } // else if (inc_) ++pos;
         if (gt > -1) {
             for (; pos + w_ > win_.front().textpos; ++pos) {
-                fprintf(log_, "%lu: ", pos);
                 marker_vals.clear();
                 size_t nmarkers = 0;
                 typename MarkerWindow::iterator it;
@@ -106,30 +103,18 @@ class MarkerIndexWriter {
                 if (it == win_.end()) { // ignore. more markers to come, probably, with next Marker
                     nmarkers = 0;
                     win_.set_pos(pos);
-                    fprintf(log_, " break\n");
                     break; // break here, then?
                 }
                 if (nmarkers) ++nwindows_;
                 if (!vec_eq(pmarker_vals, marker_vals)) {
-                    fprintf(log_, "processing... (");
-                    for (auto x: marker_locs) {
-                        fprintf(log_, "%lu ", x);
-                    }
-                    fprintf(log_, ") [");
-                    for (auto x: pmarker_vals) {
-                        fprintf(log_, "%lu ", x);
-                    }
-                    fprintf(log_, ") ]");
                     process_run();
                     // inc_ = true;
                 } // else inc_ = false;
                 marker_locs.push_back(pos);
                 pmarker_vals = marker_vals;
                 if (pos+1 > win_.front().textpos) {
-                    fprintf(log_, "(%lu -> %lu) pruning %lu", pos, pos+1, win_.front().refpos);
                     win_.pop_front(); // prune window if necessary
                 }
-                fprintf(log_, "\n");
             }
             /*
             typename MarkerWindow::iterator win_end;
@@ -258,8 +243,8 @@ class MarkerIndex {
     }
 
     std::vector<uint64_t> get_markers(uint64_t i) {
-        uint64_t srank = run_starts_.rank(i+1);
-        uint64_t erank = run_ends_.rank(i);
+        uint64_t srank = i+1 > run_starts_.size() - 1 ? run_starts_.rank(run_starts_.size()-1) : run_starts_.rank(i+1);
+        uint64_t erank = i > run_ends_.size()-1 ? run_ends_.rank(run_ends_.size()-1) : run_ends_.rank(i);
         if (srank != erank + 1) return std::vector<uint64_t>();
         else return marker_windows_[srank-1];
     }

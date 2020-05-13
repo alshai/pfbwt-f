@@ -17,6 +17,10 @@ struct Args {
     int store_docs = 0;
 };
 
+void print_help() {
+    fprintf(stderr, "usage: ./merge_pfp [--docs] -w <window size> -p <mod> -o <output prefix> -t <threads> <prefix 1> <prefix 2> ... \n");
+}
+
 Args parse_args(int argc, char** argv) {
     Args args;
     int c;
@@ -42,10 +46,12 @@ Args parse_args(int argc, char** argv) {
                 args.nthreads = atoi(optarg); break;
             case '?':
                 std::cerr << "Unknown option.\n";
+                print_help();
                 exit(1);
                 break;
             case ':':
                 std::cerr << "no argument specified for option\n";
+                print_help();
                 exit(1);
         }
     }

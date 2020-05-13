@@ -10,6 +10,7 @@ int main(int argc, char** argv) {
     size_t ref_length = std::atol(argv[1]);
     FILE* ofp = fopen(argv[2], "wb");
     int k = 0;
+    int w = 10;
     int64_t delta = 0;
     uint64_t pt = 0, pm = 0, x, delim = -1; 
     int state = 0;
@@ -34,6 +35,7 @@ int main(int argc, char** argv) {
             }
         }
         delta += (pt - pm);
+        delta += w;
         ++k;
         fclose(fp);
     }
