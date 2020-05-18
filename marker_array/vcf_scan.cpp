@@ -115,6 +115,7 @@ void update_sequence(char* seq, int rlen, bcf1_t* rec, int ppos, int32_t gt, FIL
         fputc('\n', ofp);
     }
 }
+
 // produces fasta and marker array for one haplotypes of a single simple
 void scan_vcf_sample(Args args, std::string sample) {
     VCFScannerArgs vargs(ArgsToVCFScannerArgs(args));
@@ -124,10 +125,10 @@ void scan_vcf_sample(Args args, std::string sample) {
     int i = args.haplotype;
     std::string fa_fname = args.out + "." + sample + "." + std::to_string(i) + ".fa";
     std::string fa_header = args.out + "." + sample + "." + std::to_string(i);
-    std::string ma_fname = args.out + "." + sample + "." + std::to_string(i) + ".ma2";
+    std::string ma_fname = args.out + "." + sample + "." + std::to_string(i) + ".mai";
     std::string log_fname = args.out + "." + sample + "." + std::to_string(i) + ".log";
     if (args.ref_only) {
-        ma_fname = args.out + ".ref.ma2";
+        ma_fname = args.out + ".ref.mai";
         log_fname = args.out + ".ref.log";
         fa_fname = args.out + ".ref.fa";
     }
@@ -138,11 +139,6 @@ void scan_vcf_sample(Args args, std::string sample) {
     } else {
         fa_fp = fopen(fa_fname.data(), "w");
     }
-    // if (args.ref_only) {
-    //     fprintf(fa_fp, ">ref\n");
-    // } else {
-    //     fprintf(fa_fp, ">%s\n", fa_header.data());
-    // }
     MarkerIndexWriter mi_writer(args.w, ma_fp, args.verb ? NULL : log);
     int ppos_after = 0;
     std::string pseq("");
@@ -170,27 +166,6 @@ void scan_vcf_sample(Args args, std::string sample) {
             mi_writer.update(ref_len, -1, ref_len);
             update_sequence(ref_seq, ref_len, NULL, ppos_after, -1, fa_fp, log);
         }
-
-        /*
-        if (args.ref_only) {
-            int pos = rec == NULL ? ref_seq->seq.l : rec->pos;
-            int gt = rec == NULL ? -1 : 0;
-            mi_writer.update(pos, gt, pos);
-            update_sequence(ref_seq, rec, ppos_after, gt, fa_fp, log);
-            ppos = rec->pos;
-            ppos_after = ppos + strlen(rec->d.allele[0]);
-        } else if (rec != NULL && rec->pos != ppos) { // default case
-            mi_writer.update(rec->pos, gtv[i], posv[i]);
-            update_sequence(ref_seq, ref_len, rec, ppos_after, gtv[i], fa_fp, log);
-            ppos = rec->pos;
-            ppos_after = ppos + strlen(rec->d.allele[0]);
-        } else if (rec == NULL) { // last case
-            mi_writer.update(ref_len, -1, posv[i]);
-            update_sequence(ref_seq, ref_len, NULL, ppos_after, -1, fa_fp, log);
-        } else {
-            fprintf(stderr, "warning: overlapping variants at %d. skipping... \n", rec->pos);
-        }
-        */
     };
     VCFScanner v(vargs);
     v.vcf_for_each(out_fn);
