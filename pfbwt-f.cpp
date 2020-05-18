@@ -228,15 +228,6 @@ size_t run_parser(Args args) {
                     if (args.sa || args.rssa) pfbwtf::vec_to_file<parse_t::UIntType>(bwsai, args.output + "." + EXTBWSAI);
                 });
     }
-    // if (args.print_docs) {
-    //     std::FILE* doc_fp = open_aux_file(args.output.data(), "docs", "w");
-    //     const auto& doc_names = p.get_doc_names();
-    //     const auto& doc_starts = p.get_doc_starts();
-    //     for (size_t i = 0; i < doc_starts.size(); ++i) {
-    //         fprintf(doc_fp, "%s %lu\n", doc_names[i].data(), static_cast<uint64_t>(doc_starts[i]));
-    //     }
-    //     fclose(doc_fp);
-    // }
     // TODO: dump ntab to file if applicable.
     if (args.trim_non_acgt) {
         pfbwtf::vec_to_file(p.get_ntab(), args.output + ".ntab");
