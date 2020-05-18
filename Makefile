@@ -12,6 +12,9 @@ EXECS=pfbwt-f64 pfbwt-f
 
 all: $(EXECS)
 
+vcf_to_bwt: pfbwt-f64 merge_pfp vcf_scan merge_marker_indexes marker_index_to_array
+
+
 gsa/gsacak.o: gsa/gsacak.c gsa/gsacak.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
