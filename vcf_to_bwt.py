@@ -3,6 +3,7 @@ import argparse
 import subprocess as sp
 import multiprocessing as mp
 import os
+import logging
 
 PARSE_EXTS  = ['bwlast', 'bwsai', 'dict', 'docs', 'fa', 'ilist', 'log', 'mai',
                'n', 'occ', 'parse']
@@ -124,27 +125,45 @@ def vcf_to_bwt_w_merge(args):
     samples = open(args.samples).read().strip().split('\n')
     thread_args = [VcfToXArgs(i, s, h, args) for i, s in enumerate(samples) for h in ['0', '1']]
     all_prefixes = [args.o + ".ref"] + [a.full_prefix for a in thread_args]
+    # set up logger
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    log_fp = open(args.o + ".log", 'w')
+    log_h = logging.StreamHandler(log_fp)
+    log_h.setFormatter(logging.Formatter('[%(asctime)s] %(message)s') )
+    stderr_h = logging.StreamHandler(sys.stderr)
+    stderr_h.setFormatter(logging.Formatter('[%(asctime)s] %(message)s') )
+    logger.addHandler(log_h)
+    logger.addHandler(stderr_h)
+
     # parsing
-    print("generating parses")
+    logger.info("generating parses from VCF")
     parse_pool = mp.Pool(processes=args.threads)
     ref_proc = parse_pool.apply_async(vcf_to_parse_ref, (VcfToXArgs(0, "", 0, args),))
     parse_pool.imap_unordered(vcf_to_parse, thread_args)
     ref_proc.get()
     parse_pool.close()
     parse_pool.join()
-    log = open(args.o + ".log", 'w')
+    logger.info("done generating parses from VCF")
     # merge
+    logger.info("merging parses")
     merge_pfp_cmd = ['./merge_pfp', '-s', '--parse-bwt', '--docs', '-o', args.o, '-t', str(args.threads)] + all_prefixes
-    print(' '.join(merge_pfp_cmd))
-    sp.run(merge_pfp_cmd, stdout=log, stderr=sp.PIPE, check=True)
+    logger.info(" ".join(merge_pfp_cmd))
+    sp.run(merge_pfp_cmd, stdout=log_fp, stderr=sp.PIPE, check=True)
+    logger.info("done merging parses")
     if args.clean:
+        logger.info("cleaning files")
         for prefix in all_prefixes:
             clean_parse_files(prefix)
     # construct BWT
+    logger.info("constructing BWT")
     pfbwt_cmd = ['./pfbwt-f64', '-s', '--pfbwt-only', '--print-docs', '-o', args.o]
-    print(' '.join(pfbwt_cmd))
-    sp.run(pfbwt_cmd, stdout=log, stderr=sp.PIPE, check=True)
-    log.close()
+    logger.info(" ".join(pfbwt_cmd))
+    sp.run(pfbwt_cmd, stdout=log_fp, stderr=sp.PIPE, check=True)
+    logger.info("done constructing BWT")
+
+    log_h.close()
+    log_fp.close()
 
 
 def vcf_to_bwt(args):
