@@ -48,6 +48,7 @@ class MMapFile {
         if (fp) {
             fclose(fp);
         } else {
+            fprintf(stderr, "%s: ", path.data());
             die("error opening file");
         }
         if (truncate(path.data(), size * sizeof(T))) {

@@ -15,6 +15,8 @@ struct Args {
     int w = 10;
     int p = 100;
     int store_docs = 0;
+    int parse_bwt = 0;
+    int sai = 0;
 };
 
 void print_help() {
@@ -29,10 +31,12 @@ Args parse_args(int argc, char** argv) {
         {"window-size", required_argument, NULL, 'w'},
         {"mod-val", required_argument, NULL, 'p'},
         {"output", required_argument, NULL, 'o'},
-        {"threads", required_argument, NULL, 't'}
+        {"threads", required_argument, NULL, 't'},
+        {"parse-bwt", no_argument, &args.parse_bwt, 1},
+        {"sai", no_argument, NULL, 's'}
     };
 
-    while ((c = getopt_long( argc, argv, "dw:p:o:t:", lopts, NULL) ) != -1) {
+    while ((c = getopt_long( argc, argv, "dw:p:o:t:s", lopts, NULL) ) != -1) {
         switch(c) {
             case 'd':
                 args.store_docs = 1; break;
@@ -44,6 +48,8 @@ Args parse_args(int argc, char** argv) {
                 args.output = optarg; break;
             case 't':
                 args.nthreads = atoi(optarg); break;
+            case 's':
+                args.sai = 1; break;
             case '?':
                 std::cerr << "Unknown option.\n";
                 print_help();
@@ -93,8 +99,8 @@ void parser_merge_worker(MergeArgs& args, size_t tidx, size_t start_i, size_t en
     args.parsers[tidx].finalize();
 }
 
-pfbwtf::PfParser<> parser_merge_from_vec(ParseV& pv) {
-    pfbwtf::PfParser<> parser;
+pfbwtf::PfParser<> parser_merge_from_vec(pfbwtf::PfParserParams params, ParseV& pv) {
+    pfbwtf::PfParser<> parser(params);
     for (const auto& p: pv) {
         parser += p;
     }
@@ -107,6 +113,7 @@ void merge_pfp(Args args) {
     params.store_docs = args.store_docs;
     params.w = args.w;
     params.p = args.p;
+    params.get_sai = args.sai;
     if (args.nthreads > 1) {
         // initialize threads and thread arguments
         MergeArgs margs;
@@ -127,8 +134,9 @@ void merge_pfp(Args args) {
         for (size_t i = 0; i < args.nthreads; ++i)  {
             threads[i].join();
         }
-        auto parser = parser_merge_from_vec(margs.parsers);
+        auto parser = parser_merge_from_vec(margs.params, margs.parsers);
         pfbwtf::save_parser(parser, args.output);
+        if (args.parse_bwt) pfbwtf::save_parse_bwt(parser, args.output, args.sai);
     } else {
         std::string log_fname = args.output + ".pfbwt.log";
         FILE* fp = fopen(log_fname.data(), "w");
@@ -139,6 +147,7 @@ void merge_pfp(Args args) {
         }
         parser.finalize();
         pfbwtf::save_parser(parser, args.output);
+        if (args.parse_bwt) pfbwtf::save_parse_bwt(parser, args.output, args.sai);
     }
 }
 

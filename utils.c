@@ -184,7 +184,10 @@ size_t get_file_size(const char* path) {
         die("cannot get file size from stdin");
     }
     FILE* fp = fopen(path, "rb");
-    if (fp == NULL) die("error opening file");
+    if (fp == NULL) {
+        fprintf(stderr, "%s: ", path);
+        die("error opening file");
+    }
     fseek(fp, 0, SEEK_END);
     size_t size = ftell(fp);
     fclose(fp);

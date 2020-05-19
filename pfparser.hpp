@@ -526,7 +526,7 @@ struct PfParser {
         }
     }
 
-    size_t get_n() {  // includes As at end of each seq
+    size_t get_n() const {  // includes As at end of each seq
         //             Dollars
         return pos_ >= params_.w ? pos_ - params_.w : 0;
     }

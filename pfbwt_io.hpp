@@ -213,14 +213,18 @@ void docs_to_file(std::string fname, const std::vector<std::string>& doc_names, 
 void save_parser(const pfbwtf::PfParser<>& parser, std::string prefix) {
     std::string dict_fname = prefix + ".dict";
     std::string occ_fname = prefix + ".occ";
+    std::string n_fname = prefix + ".n";
     std::string parse_ranks_fname = prefix + ".parse";
     dict_to_file(parser.get_sorted_phrases(), dict_fname);
     vec_to_file(parser.get_occs(), occ_fname);
     vec_to_file(parser.get_parse_ranks(), parser.get_parse_size(), parse_ranks_fname);
-    if (parser.get_params().store_docs) { 
+    if (parser.get_params().store_docs) {
         std::string docs_fname = prefix + ".docs";
         docs_to_file(docs_fname, parser.get_doc_names(), parser.get_doc_starts());
     }
+    std::FILE* n_fp = fopen(n_fname.data(), "w");
+    fprintf(n_fp, "%lu\n", parser.get_n());
+    fclose(n_fp);
 }
 
 pfbwtf::PfParser<> parse_from_fasta(std::string fasta_fname, pfbwtf::PfParserParams p) {
@@ -257,6 +261,18 @@ PfParser<> load_or_generate_parser_w_log(std::string prefix, PfParserParams para
         }
     }
     return parser;
+}
+
+void save_parse_bwt(PfParser<>& parser, std::string output, bool sa = false) {
+        parser.bwt_of_parse(
+                [&](const std::vector<char>& bwlast,
+                    const std::vector<typename PfParser<>::UIntType>& ilist,
+                    const std::vector<typename PfParser<>::UIntType>& bwsai)
+                {
+                    vec_to_file<char>(bwlast, output + ".bwlast");
+                    vec_to_file<PfParser<>::UIntType>(ilist, output + ".ilist");
+                    if (sa) vec_to_file<typename PfParser<>::UIntType>(bwsai, output + ".bwsai");
+                });
 }
 
 } // namespace
