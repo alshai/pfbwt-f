@@ -72,6 +72,8 @@ void print_help() {
     BWT of input saved to <fasta file>.bwt. Header lines are excluded.\n\
 \n\
 options\n\
+    -o                  output prefix.\n\
+    \n\
     -s                  Output full suffix array to <fasta file>.sa\n\
     \n\
     -r                  Output run-length sampled suffix arrray to \n\
@@ -86,6 +88,9 @@ options\n\
     \n\
     --parse-only        only produce parse (dict, occ, ilist, last, bwlast)\n\
                         do not build final BWT\n\
+    \n\
+    --pfbwt-only        build pfbwt from parse + parse-bwt. Requires -o to match\n\
+                        parse files' prefix.\n\
     \n\
     -c/--stdout <ext>   output file ending <ext> will be stdout instead.\n\
                         (example: '-c bwt' would output <fasta file>.bwt to stdout)\n\
@@ -210,11 +215,12 @@ size_t run_parser(Args args) {
     fprintf(stderr, "starting...\n");
     { // TODO: add option for more fasta files
         Timer t("TASK\tparsing input\t");
-        n = p.add_fasta(args.in_fname);
+        p.add_fasta(args.in_fname);
     }
     {
         Timer t("TASK\tfinalizing parse, writing dict, occs, and ranks\t");
         p.finalize();
+        n = p.get_n();
         pfbwtf::save_parser(p, args.output);
     }
     {
@@ -233,7 +239,7 @@ size_t run_parser(Args args) {
         pfbwtf::vec_to_file(p.get_ntab(), args.output + ".ntab");
     }
     std::FILE* n_fp = fopen((args.output + ".n").data(), "w");
-    fprintf(n_fp, "n = %lu\n", n);
+    fprintf(n_fp, "%lu\n", n);
     fclose(n_fp);
     return n;
 }
@@ -248,7 +254,8 @@ std::FILE* init_file_pointer_wb(const Args& args, std::string ext) {
 
 size_t read_single_int_str(const char* fname, const char* ext) {
     size_t n = 0;
-    std::FILE* n_fp = open_aux_file(fname, ext, "r");
+    std::string fname_str = std::string(fname) + "." + std::string(ext);
+    std::FILE* n_fp = fopen(fname_str.data(), "r");
     char* line = NULL;
     size_t x = 0;
     if (getline(&line, &x, n_fp) != -1) {
@@ -343,9 +350,12 @@ void run_pfbwt(const Args args) {
 
 int main(int argc, char** argv) {
     Args args(parse_args(argc, argv));
-    if (!args.pfbwt_only)
+    if (!args.pfbwt_only) {
+        fprintf(stderr, "running parser...\n");
         args.n = run_parser(args); // scan file and save relevant info to disk
-    if (!args.parse_only) { 
+    }
+    if (!args.parse_only) {
+        fprintf(stderr, "generating BWT using pfbwt algorithm...\n");
         if (args.mmap) {
             fprintf(stderr, "workspace will be contained on disk (mmap)\n");
             run_pfbwt<MMapFileSource, MMapFileSink>(args);
