@@ -18,6 +18,7 @@ struct Args {
     int haplotype = 0;
     int ref_only = 0;
     int to_stdout = 0;
+    int mai = 0;
 };
 
 VCFScannerArgs ArgsToVCFScannerArgs(Args args) {
@@ -47,10 +48,11 @@ Args parse_args(int argc, char** argv) {
         {"verbose", no_argument, NULL, 'v'},
         {"fasta", required_argument, NULL, 'f'},
         {"ref-only", no_argument, NULL, 'r'},
-        {"stdout", no_argument, &args.to_stdout, 1}
+        {"stdout", no_argument, &args.to_stdout, 1},
+        {"marker-index", no_argument, NULL, 'm'}
     };
 
-    while ((c = getopt_long( argc, argv, "rf:w:o:t:c:S:vH:", lopts, NULL) ) != -1) {
+    while ((c = getopt_long( argc, argv, "rf:w:o:t:c:S:vH:m", lopts, NULL) ) != -1) {
         switch(c) {
             case 'f':
                 args.ref_fasta = optarg; break;
@@ -83,6 +85,8 @@ Args parse_args(int argc, char** argv) {
                 break;
             case 'r':
                 args.ref_only = 1; break;
+            case 'm':
+                args.mai = 1; break;
             case '?':
                 fprintf(stderr,  "Unknown option.\n");
                 exit(1);
@@ -133,13 +137,18 @@ void scan_vcf_sample(Args args, std::string sample) {
         fa_fname = args.out + ".ref.fa";
     }
     log = fopen(log_fname.data(), "w");
-    ma_fp = fopen(ma_fname.data(), "wb");
+    if (args.mai) ma_fp = fopen(ma_fname.data(), "wb");
     if (args.to_stdout) {
         fa_fp = stdout;
     } else {
         fa_fp = fopen(fa_fname.data(), "w");
     }
-    MarkerIndexWriter mi_writer(args.w, ma_fp, args.verb ? NULL : log);
+    // MarkerIndexWriter mi_writer(args.mai ? MarkerIndexWriter(args.w, ma_fp, args.verb ? NULL : log) : MarkerIndexWriter());
+    MarkerIndexWriter mi_writer(([&]() {
+            if (args.mai) return MarkerIndexWriter(args.w, ma_fp, args.verb ? NULL : log);
+            else return MarkerIndexWriter();
+        })()
+    );
     int ppos_after = 0;
     std::string pseq("");
     // auto out_fn = [&](bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int ref_len) {
@@ -157,20 +166,20 @@ void scan_vcf_sample(Args args, std::string sample) {
             if (rec->pos != ppos) {
                 int pos = args.ref_only ? rec->pos : posv[i];
                 int gt =  args.ref_only ? 0        : gtv[i];
-                mi_writer.update(rec->pos, gt, pos);
+                if (args.mai) mi_writer.update(rec->pos, gt, pos);
                 update_sequence(ref_seq, ref_len, rec, ppos_after, gt, fa_fp, log);
                 ppos = rec->pos;
                 ppos_after = ppos + strlen(rec->d.allele[0]);
             } else fprintf(stderr, "warning: overlapping variants at %d. skipping... \n", rec->pos);
         } else {
-            mi_writer.update(ref_len, -1, ref_len);
+            if (args.mai) mi_writer.update(ref_len, -1, ref_len);
             update_sequence(ref_seq, ref_len, NULL, ppos_after, -1, fa_fp, log);
         }
     };
     VCFScanner v(vargs);
     v.vcf_for_each(out_fn);
     fprintf(stderr, "done loop\n");
-    fclose(ma_fp);
+    if (args.mai) fclose(ma_fp);
     if (!args.ref_only) fclose(fa_fp);
 }
 

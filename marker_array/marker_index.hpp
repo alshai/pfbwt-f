@@ -68,6 +68,8 @@ class MarkerIndexWriter {
 
     public:
 
+    MarkerIndexWriter() {}
+
     MarkerIndexWriter(int w, FILE* ofp, FILE* log=NULL)
         : win_(w)
         , w_(w) {
@@ -75,10 +77,7 @@ class MarkerIndexWriter {
             log_ = log;
         }
 
-    ~MarkerIndexWriter() {
-        // fprintf(stderr, "n positions w/ windows: %lu\n", nwindows_);
-        // fprintf(stderr, "last position: %d\n", ppos);
-    }
+    ~MarkerIndexWriter() { }
 
     void update(size_t rpos, int32_t gt, size_t hpos) {
         if (gt > -1) win_.push_back(hpos, rpos, gt);
@@ -88,7 +87,7 @@ class MarkerIndexWriter {
             process_run(); // automatically instigates end of run
             pos = win_.front().textpos - w_ + 1;
             win_.set_pos(pos);
-        } // else if (inc_) ++pos;
+        }
         if (gt > -1) {
             for (; pos + w_ > win_.front().textpos; ++pos) {
                 marker_vals.clear();
@@ -108,39 +107,13 @@ class MarkerIndexWriter {
                 if (nmarkers) ++nwindows_;
                 if (!vec_eq(pmarker_vals, marker_vals)) {
                     process_run();
-                    // inc_ = true;
-                } // else inc_ = false;
+                }
                 marker_locs.push_back(pos);
                 pmarker_vals = marker_vals;
                 if (pos+1 > win_.front().textpos) {
                     win_.pop_front(); // prune window if necessary
                 }
             }
-            /*
-            typename MarkerWindow::iterator win_end;
-            while ((win_end = win_.end_of_window()) != win_.end()) {
-                // process window every position upto and including pos
-                for (; pos <= win_.front().textpos; ++pos) {
-                    marker_vals.clear();
-                    size_t nmarkers = 0;
-                    win_.set_pos(pos);
-                    for (auto it = win_.begin(); it != win_end; ++it) {
-                        if (pos <= it->textpos && it->textpos < pos + win_.get_w()) {
-                            ++nmarkers;
-                            marker_vals.push_back(it->refpos);
-                        } else break;
-                    }
-                    if (nmarkers) ++nwindows_;
-                    if (!vec_eq(pmarker_vals, marker_vals)) {
-                        process_run();
-                        inc_ = true;
-                    } else inc_ = false;
-                    marker_locs.push_back(pos);
-                    pmarker_vals = marker_vals;
-                }
-                win_.pop_front();
-            }
-            */
         } else { // last rec in file
             for (; pos <= win_.front().textpos; ++pos) {
                 marker_vals.clear();
@@ -193,6 +166,7 @@ class MarkerIndexWriter {
     std::vector<uint64_t> marker_vals, pmarker_vals, vbuf; // switch from uint64_t to std::pair
 };
 
+
 template<template<typename> typename ReadConType=VecFileSource>
 class MarkerIndex {
 
@@ -233,11 +207,6 @@ class MarkerIndex {
         run_ends_.init_rs();
     }
 
-    /*
-     *    +  -X+  -X+-X+ -XX+ -
-     * 000100001000010010000100
-     * 000000100001001000100001
-     */
     bool has_markers(uint64_t i) {
         return (run_starts_.rank(i+1) == run_ends_.rank(i) + 1);
     }
@@ -264,52 +233,6 @@ class MarkerIndex {
     bv_rs<> run_ends_;
     std::vector<std::vector<uint64_t>> marker_windows_;
 };
-
-// template<template<typename...>  typename HashMap=phmap::flat_hash_map,
-//          template<typename>     typename ReadConType=VecFileSource>
-// class MarkerIndex : public HashMap<uint64_t, std::vector<uint64_t>> {
-// 
-//     public:
-// 
-//     MarkerIndex() { }
-// 
-//     MarkerIndex(std::string fname) {
-//         ReadConType<uint64_t> in_arr(fname);
-//         uint64_t keys[2];
-//         std::vector<uint64_t> values;
-//         int state = 0;
-//         for (size_t i = 0; i < in_arr.size(); ++i) {
-//             if (in_arr[i] == delim_) {
-//                 if (keys[0] == keys[1]) {
-//                     (*this)[keys[0]] = values;
-//                 } else {
-//                     // fprintf(stderr, "processing keys %lu to %lu\n", keys[0], keys[1]);
-//                     for (uint64_t k = keys[0]; k <= keys[1]; ++k) {
-//                         (*this)[k] = values;
-//                     }
-//                 }
-//                 // keys.clear();
-//                 values.clear();
-//                 state = 0;
-//             }
-//             else if (state < 2) {
-//                 keys[state++] = in_arr[i];
-//             } else {
-//                 values.push_back(in_arr[i]);
-//             }
-//         }
-//     }
-// 
-//     std::vector<uint64_t> get_markers(uint64_t i) {
-//         return (*this)[i];
-//     }
-// 
-//     private:
-// 
-//     uint64_t delim_ = -1;
-// 
-// };
-
 
 #endif
 
