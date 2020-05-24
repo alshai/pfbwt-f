@@ -7,6 +7,7 @@
 #include "parallel_hashmap/phmap.h"
 #include "file_wrappers.hpp"
 #include "sdsl_bv_wrappers.hpp"
+#include "rle_window_array.hpp"
 
 // false if not equal, true if equal
 template<typename T>
@@ -168,70 +169,20 @@ class MarkerIndexWriter {
 
 
 template<template<typename> typename ReadConType=VecFileSource>
-class MarkerIndex {
+class MarkerIndex : public rle_window_arr<ReadConType> {
 
     public:
 
-    MarkerIndex() { }
+    MarkerIndex() {}
+    MarkerIndex(std::string fname) : rle_window_arr<ReadConType>(fname) {}
 
-    MarkerIndex(std::string fname) {
-        ReadConType<uint64_t> in_arr(fname);
-        uint64_t size = get_last_position(in_arr) + 2;
-        run_starts_.resize(size);
-        run_ends_.resize(size);
-        uint64_t rs = 0, re=0;
-        uint64_t keys[2];
-        std::vector<uint64_t> values;
-        int state = 0;
-        for (size_t i = 0; i < in_arr.size(); ++i) {
-            if (in_arr[i] == delim_) {
-                if (rs == keys[0] || re == keys[1]) {
-                    fprintf(stderr, "warning equal run start at %lu or run end at %lu\n", rs, re);
-                    exit(1);
-                }
-                run_starts_[keys[0]] = 1;
-                run_ends_[keys[1]] = 1;
-                rs = keys[0];
-                re = keys[1];
-                marker_windows_.push_back(values);
-                values.clear();
-                state = 0;
-            }
-            else if (state < 2) {
-                keys[state++] = in_arr[i];
-            } else {
-                values.push_back(in_arr[i]);
-            }
-        }
-        run_starts_.init_rs();
-        run_ends_.init_rs();
+    bool has_markers(uint64_t i) const {
+        return this->has_entry(i);
     }
 
-    bool has_markers(uint64_t i) {
-        return (run_starts_.rank(i+1) == run_ends_.rank(i) + 1);
+    std::vector<uint64_t> get_markers(uint64_t i) const {
+        return this->at(i);
     }
-
-    std::vector<uint64_t> get_markers(uint64_t i) {
-        uint64_t srank = i+1 > run_starts_.size() - 1 ? run_starts_.rank(run_starts_.size()-1) : run_starts_.rank(i+1);
-        uint64_t erank = i > run_ends_.size()-1 ? run_ends_.rank(run_ends_.size()-1) : run_ends_.rank(i);
-        if (srank != erank + 1) return std::vector<uint64_t>();
-        else return marker_windows_[srank-1];
-    }
-
-    private:
-
-    uint64_t get_last_position(ReadConType<uint64_t>& in_arr) {
-        uint64_t i = in_arr.size() - 2; // in_arr[-1] is delim_
-        while (in_arr[i] != delim_) {
-            --i;
-        }
-        return in_arr[i+2]; //  delim keys[0] keys[1] val1 val2 ... delim EOF
-    }
-
-    uint64_t delim_ = -1;
-    bv_rs<> run_starts_;
-    bv_rs<> run_ends_;
-    std::vector<std::vector<uint64_t>> marker_windows_;
 };
 
 #endif

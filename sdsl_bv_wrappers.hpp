@@ -32,11 +32,13 @@ class bv_rs : public sdsl_bv_t {
 
     bv_rs& operator=(const sdsl_bv_t& rhs) {
         sdsl_bv_t::operator=(rhs);
+        init_rs();
         return *this;
     }
 
     bv_rs& operator=(sdsl_bv_t&& rhs) {
         sdsl_bv_t::operator=(rhs);
+        init_rs();
         return *this;
     }
 
