@@ -111,3 +111,32 @@ to merge multiple parses:
 ```
 merge_pfp [--output] <parse prefix 1> <parse prefix2> ...
 ```
+
+## Using vcf_to_bwt.py
+
+vcf_to_bwt.py is an easy way to generate a BWT directly from a VCF file and its corresponding reference sequence
+
+Requirements: GCC 7+, Python 3.X
+
+First, compile the necessary executables
+
+```
+make vcf_to_bwt
+```
+
+Then run `vcf_to_bwt.py`
+
+
+```
+python vcf_to_bwt.py -o <output prefix> -S <samples file> <reference fasta> <vcf file>
+```
+
+- Intermediary files, parse-related files and the final BWT will be prepended with `<output prefix>`
+
+- To use memory mapping, use `-M` option.
+
+- To also generate a marker array (details to come soon), use the `-m` option.
+
+- To save the fasta sequences of the haplotypes contained in the VCF file, use the `--save_fasta` option
+
+- For other options, run `python vcf_to_bwt.py -h`
