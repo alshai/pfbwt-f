@@ -29,6 +29,7 @@ class VcfToXArgs:
         self.save_fasta = other.save_fasta
         self.ref_only = False
         self.m = other.marker_array
+        self.mmap = other.mmap
 
 
 class VcfScanCmd:
@@ -97,10 +98,14 @@ def vcf_to_parse(args, ref=False):
         with open(fa_fname, "w") as fa_fp:
             vcf_scan_proc = sp.run(vcf_scan_cmd, stdout=fa_fp, stderr=log)
         pfbwt_cmd = ['./pfbwt-f64', '--parse-only', '--print-docs', '-s', '-o', full_prefix, fa_fname]
+        if args.mmap:
+            pfbwt_cmd = pfbwt_cmd[:1] + ['-m'] + pfbwt_cmd[1:]
         pfbwt_proc = sp.run(pfbwt_cmd, check=True, stdout=log, stderr=sp.PIPE)
     else:
         vcf_scan_proc = sp.Popen(vcf_scan_cmd, stdout=sp.PIPE, stderr=log)
         pfbwt_cmd = ['./pfbwt-f64', '--parse-only', '--print-docs', '-s', '-o', full_prefix]
+        if args.mmap:
+            pfbwt_cmd = pfbwt_cmd[:1] + ['-m'] + pfbwt_cmd[1:]
         pfbwt_proc = sp.run(pfbwt_cmd, stdin=vcf_scan_proc.stdout, stdout=log, stderr=sp.PIPE, check=True)
         vcf_scan_proc.wait()
     log.close()
@@ -118,6 +123,7 @@ class vcf_to_parse_builder:
         self.ref = ref
     def __call__(self, args):
         return vcf_to_parse(args, self.ref)
+
 
 
 def merge_marker_indexes(args, thread_args, logger, log_fp):
@@ -191,11 +197,16 @@ def vcf_to_bwt(args):
     # construct BWT
     logger.info("constructing BWT")
     pfbwt_cmd = ['./pfbwt-f64', '--stdout', 'sa', '-s', '--pfbwt-only', '--print-docs', '-o', args.o]
+    if args.mmap:
+        pfbwt_cmd = pfbwt_cmd[:1] + ['-m'] + pfbwt_cmd[1:]
     logger.info(" ".join(pfbwt_cmd))
     pfbwt_proc = sp.Popen(pfbwt_cmd, stdout=sp.PIPE, stderr=log_fp)
     if args.marker_array:
         logger.info("also constructing marker array from marker index")
-        marker_array_cmd = ['./marker_index_to_array', args.o + ".mai", '-', args.o + ".ma"]
+        # marker_array_cmd = ['./marker_index_to_array', args.o + ".mai", '-', args.o + ".ma"]
+        marker_array_cmd = ['./marker_index_to_array', "-o", args.o + ".ma", args.o + ".mai", '-']
+        if args.mmap:
+            marker_array_cmd = marker_array_cmd[:1] + ['-m'] + marker_array_cmd[1:]
         logger.info(" ".join(marker_array_cmd))
         marker_array_proc = sp.run(marker_array_cmd, stdin=pfbwt_proc.stdout, stderr=sp.STDOUT, stdout=log_fp, check=True)
         pfbwt_proc.wait()
@@ -224,6 +235,7 @@ if __name__ == "__main__":
     parser.add_argument("--clean", action='store_true', help="cleanup intermediate files as we go")
     parser.add_argument("--marker_array", "-m", action='store_true', help="cleanup intermediate files as we go")
     parser.add_argument("--keep_parse", action='store_true', help="keeps the final parse (for when --clean is used)")
+    parser.add_argument("--mmap", '-M', action='store_true', help="tell pfbwt-f64 to use mmap (use this for very large files)")
     args = parser.parse_args()
 
     vcf_to_bwt(args)

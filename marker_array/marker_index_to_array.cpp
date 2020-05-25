@@ -2,16 +2,50 @@
 #include <cstdio>
 #include <cstring>
 #include <cinttypes>
-#include "marker_array/marker_index.hpp"
+#include <getopt.h>
+#include "marker_array/marker_array.hpp"
+#include "file_wrappers.hpp"
+
+struct Args {
+    std::string mai_fname = "";
+    std::string sa_fname = "";
+    std::string output = "out";
+    int mmap = 0;
+};
+
+Args parse_args(int argc, char** argv) {
+    Args args;
+    int c;
+    static struct option lopts[] = {
+        {"mmap", no_argument, NULL, 'm'},
+        {"output", required_argument, NULL, 'o'}
+    };
+    while ((c = getopt_long( argc, argv, "o:mh", lopts, NULL) ) != -1) {
+        switch(c) {
+            case 'm':
+                args.mmap = 1; break;
+            case 'o':
+                args.output = std::string(optarg); break;
+            case '?':
+                fprintf(stderr,  "Unknown option.\n");
+                exit(1);
+                break;
+            case ':':
+                fprintf(stderr,  "no argument specified for option\n");
+                exit(1);
+        }
+    }
+    args.mai_fname = argv[optind++];
+    args.sa_fname = argv[optind++];
+    return args;
+}
 
 int main(int argc, char** argv) {
-    if (argc < 3) {
-        fprintf(stderr, "usage: ./marker_index_to_array <marker index> <sa> [<output prefix>] \n");
-    }
-    if (argc > 3) {
-        write_marker_array(argv[1], argv[2], argv[3]);
+    Args args(parse_args(argc, argv));
+    if (args.mmap) {
+        write_marker_array<MarkerIndex<MMapFileSource>>(args.mai_fname, args.sa_fname, args.output);
     } else {
-        write_marker_array(argv[1], argv[2]);
+        write_marker_array<MarkerIndex<VecFileSource>>(args.mai_fname, args.sa_fname, args.output);
     }
     return 0;
 }

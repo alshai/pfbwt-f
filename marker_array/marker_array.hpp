@@ -5,11 +5,12 @@
 #include "marker_array/marker_index.hpp"
 #include "rle_window_array.hpp"
 
+template <typename MIdx=MarkerIndex<>>
 void write_marker_array(std::string mai_fname, std::string sa_fname, std::string output = "") {
     FILE* sa_fp = sa_fname == "-" ? stdin : fopen(sa_fname.data(), "rb");
     FILE* ofp = fopen(output == "" ? "out" : output.data(), "wb");
     fprintf(stderr, "opening marker index from %s\n", mai_fname.data());
-    MarkerIndex<> mai(mai_fname);
+    MIdx mai(mai_fname);
     constexpr uint64_t delim = -1;
     uint64_t s;
     uint64_t i = 0;
@@ -42,7 +43,6 @@ void write_marker_array(std::string mai_fname, std::string sa_fname, std::string
     }
     fclose(sa_fp);
     fclose(ofp);
-    return 0;
 }
 
 
@@ -51,8 +51,8 @@ class MarkerArray : public rle_window_arr<ReadConType> {
 
     public:
 
-    MarkerIndex() {}
-    MarkerIndex(std::string fname) : rle_window_arr<ReadConType>(fname) {}
+    MarkerArray() {}
+    MarkerArray(std::string fname) : rle_window_arr<ReadConType>(fname) {}
 
     bool has_markers(uint64_t i) const {
         return this->has_entry(i);
