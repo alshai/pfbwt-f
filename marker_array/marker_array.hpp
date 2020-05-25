@@ -1,111 +1,64 @@
-#include <cstdio>
-#include <cinttypes>
-#include <vector>
 #include <string>
-#include "parallel_hashmap/phmap.h"
-#include "file_wrappers.hpp"
+#include <cstdio>
+#include <cstring>
+#include <cinttypes>
+#include "marker_array/marker_index.hpp"
+#include "rle_window_array.hpp"
 
-/*
- * things I need
- * MarkerArrayWriter(idx_fname, sa_fname)
- *
- *
- */
-
-struct MarkerArrayWriterArgs {
-    std::string midx_fname;
-    std::string sa_fname;
-    int w = 10;
+void write_marker_array(std::string mai_fname, std::string sa_fname, std::string output = "") {
+    FILE* sa_fp = sa_fname == "-" ? stdin : fopen(sa_fname.data(), "rb");
+    FILE* ofp = fopen(output == "" ? "out" : output.data(), "wb");
+    fprintf(stderr, "opening marker index from %s\n", mai_fname.data());
+    MarkerIndex<> mai(mai_fname);
+    constexpr uint64_t delim = -1;
+    uint64_t s;
+    uint64_t i = 0;
+    std::vector<uint64_t> markers, pmarkers, locs;
+    while (fread(&s, sizeof(uint64_t), 1, sa_fp) == 1) {
+        markers.clear();
+        markers = mai.get_markers(s);
+        if (!vec_eq(markers, pmarkers)) {
+            if (pmarkers.size()) {
+                fwrite(&locs.front(), sizeof(uint64_t), 1, ofp);
+                fwrite(&locs.back(), sizeof(uint64_t), 1, ofp);
+                for (auto m: pmarkers) {
+                    fwrite(&m, sizeof(uint64_t), 1, ofp);
+                }
+                fwrite(&delim, sizeof(uint64_t), 1, ofp);
+            }
+            locs.clear();
+        }
+        locs.push_back(i);
+        pmarkers = markers;
+        ++i;
+    }
+    if (pmarkers.size()) {
+        fwrite(&locs.front(), sizeof(uint64_t), 1, ofp);
+        fwrite(&locs.back(), sizeof(uint64_t), 1, ofp);
+        for (auto m: pmarkers) {
+            fwrite(&m, sizeof(uint64_t), 1, ofp);
+        }
+        fwrite(&delim, sizeof(uint64_t), 1, ofp);
+    }
+    fclose(sa_fp);
+    fclose(ofp);
+    return 0;
 }
 
-template< template<typename> typename ReadConType=VecFileSource>
-class MarkerArrayWriter {
 
-    using UIntType = uint64_t;
+template<template<typename> typename ReadConType=VecFileSource>
+class MarkerArray : public rle_window_arr<ReadConType> {
 
     public:
 
-    using iterator = typename MarkerArr::iterator;
+    MarkerIndex() {}
+    MarkerIndex(std::string fname) : rle_window_arr<ReadConType>(fname) {}
 
-    MarkerArrayWriter() {}
-
-    MarkerArrayWriter(MarkerArrayWriterArgs args) : w_(args.w) {
-        MarkerIndex midx(args.midx_fname);
-        FILE* sa_fp = fopen(args.sa_fname.data(), "rb");
-        int key = 0;
-        while (fread(&sa, sizeof(uint64_t), 1, sa_fp) == 1) {
-            if (midx.find(sa) != midx.end()) {
-                auto values = midx[sa];
-            }
-            ++key;
-        }
-        fclose(sa_fp);
+    bool has_markers(uint64_t i) const {
+        return this->has_entry(i);
     }
 
-    void init_rs() {
-        mbv.init_rs();
+    std::vector<uint64_t> get_markers(uint64_t i) const {
+        return this->at(i);
     }
-
-    typename MarkerArr::const_iterator find(uint64_t i) {
-        uint64_t j;
-        if (mbv[i]) {
-            j = mbv.rank(i);
-        } else if (mbv.rank(i)) {
-            j = mbv.rank(i)-1;
-        } else return markers.cend();
-        uint64_t midx = mbv.select(j+1);
-        if (i >=midx && i < midx+markers[j].range_size) {
-            return markers.cbegin() + j;
-        } else {
-            return markers.cend();
-        }
-    }
-
-    // search a range for markers. return marker only if entire range contains it.
-    typename MarkerArr::const_iterator find_range_single_only(uint64_t i1, uint64_t i2) {
-        uint64_t j1, j2;
-        if (mbv[i1]) {
-            j1 = mbv.rank(i1);
-        } else if (mbv.rank(i1)) {
-            j1 = mbv.rank(i1)-1;
-        } else return markers.cend();
-        if (mbv[i2]) {
-            j2 = mbv.rank(i2);
-        } else if (mbv.rank(i2)) {
-            j2 = mbv.rank(i2)-1;
-        } else return markers.cend();
-        if (j1 != j2) return markers.cend();
-
-        uint64_t mstart = mbv.select(j1+1);
-        uint64_t mend = mstart+markers[j1].range_size;
-        if (i1 >= mstart && i1 < mend && i2 < mend) {
-            return markers.cbegin() + j1;
-        } else {
-            return markers.cend();
-        }
-    }
-
-    typename MarkerArr::iterator begin() {
-        return markers.begin();
-    }
-
-    typename MarkerArr::const_iterator cbegin() const {
-        return markers.begin();
-    }
-
-    typename MarkerArr::iterator end() {
-        return markers.end();
-    }
-
-    typename MarkerArr::const_iterator cend() const {
-        return markers.cend();
-    }
-
-    private:
-
-    // TODO: turn this into one continuous vector
-    MarkerArr markers;
-    CompressedBv mbv;
 };
-}; // namespace marr
-
