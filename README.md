@@ -25,6 +25,8 @@ Some modifications / additions from the original code:
 
 * **NEW** - Option to merge separate prefix-free parses from their `.dict` and `.parse` files. Use `merge_pfp` to do this.
 
+* *IMPORTANT* A padding of `w` (window-size) As are added to the end of each sequence to help facilitate the merging process. An option to prevent this padding will be added soon~
+
 Features that will be added soon.
 
 * Document Array and other SA-related data structures.
