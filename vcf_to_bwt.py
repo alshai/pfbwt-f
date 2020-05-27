@@ -28,7 +28,7 @@ class VcfToXArgs:
         self.full_prefix = '{}.{}.{}'.format(self.prefix, self.sample, self.h)
         self.save_fasta = other.save_fasta
         self.ref_only = False
-        self.m = other.marker_array
+        self.m = other.ma
         self.mmap = other.mmap
 
 
@@ -126,7 +126,6 @@ class vcf_to_parse_builder:
         return vcf_to_parse(args, self.ref)
 
 
-
 def merge_marker_indexes(args, thread_args, logger, log_fp):
     logger.info("merging marker indexes")
     length = int(open(args.o + ".ref.n").read().strip())
@@ -134,6 +133,23 @@ def merge_marker_indexes(args, thread_args, logger, log_fp):
     logger.info(" ".join(cmd))
     sp.run(cmd, check=True, stdout=log_fp, stderr=sp.PIPE)
     logger.info("merged marker indexes")
+
+
+class PfbwtCmd:
+
+    def __init__(self, args):
+        self.sa = args.sa
+        self.ma = args.ma
+        self.mmap = args.mmap
+        self.o = args.o
+
+    def get_cmd(self):
+        cmd = ['./pfbwt-f64', '--pfbwt-only', '--print-docs', '-o', args.o]
+        if self.sa or self.ma:
+            cmd += ['--stdout', 'sa', '-s']
+        if self.mmap:
+            cmd += ['-m']
+        return cmd
 
 
 def vcf_to_bwt(args):
@@ -164,7 +180,7 @@ def vcf_to_bwt(args):
         fasta_pool.join()
         logger.info("done generating fastas from VCF")
         # merging
-        if args.marker_array:
+        if args.ma:
             merge_marker_indexes(args, thread_args, logger, log_fp)
         logger.info("generating parse (directly from fasta files)")
         parse_cmd = ['./pfbwt-f64', '--parse-only', '-s', '--print-docs', '-o', args.o]
@@ -184,7 +200,7 @@ def vcf_to_bwt(args):
         parse_pool.join()
         logger.info("done generating parses from VCF")
         # merging
-        if args.marker_array:
+        if args.ma:
             merge_marker_indexes(args, thread_args, logger, log_fp)
         logger.info("merging parses")
         merge_pfp_cmd = ['./merge_pfp', '-s', '--parse-bwt', '--docs', '-o', args.o, '-t', str(args.threads)] + all_prefixes
@@ -197,25 +213,36 @@ def vcf_to_bwt(args):
                 clean_parse_files(prefix)
     # construct BWT
     logger.info("constructing BWT")
-    pfbwt_cmd = ['./pfbwt-f64', '--stdout', 'sa', '-s', '--pfbwt-only', '--print-docs', '-o', args.o]
-    if args.mmap:
-        pfbwt_cmd = pfbwt_cmd[:1] + ['-m'] + pfbwt_cmd[1:]
-    logger.info(" ".join(pfbwt_cmd))
+    pfbwt_cmd_builder = PfbwtCmd(args)
+    pfbwt_cmd = pfbwt_cmd_builder.get_cmd()
     pfbwt_proc = sp.Popen(pfbwt_cmd, stdout=sp.PIPE, stderr=log_fp)
-    if args.marker_array:
-        logger.info("also constructing marker array from marker index")
-        # marker_array_cmd = ['./marker_index_to_array', args.o + ".mai", '-', args.o + ".ma"]
+    if args.sa and not args.ma:
+        # cat output to <output>.sa, don't call marker_index_to_array
+        sa_fp = open(args.o + ".sa", "wb")
+        logger.info(" ".join(pfbwt_cmd) + " | cat")
+        cat_sa_proc = sp.run(['cat'], stdin=pfbwt_proc.stdout, stdout=sa_fp, stderr=log_fp, check=True)
+        pfbwt_proc.wait()
+        sa_fp.close()
+    elif args.ma and not args.sa:
+        logger.info("constructing marker array along with BWT. SA will not be saved")
         marker_array_cmd = ['./marker_index_to_array', "-o", args.o + ".ma", args.o + ".mai", '-']
         if args.mmap:
             marker_array_cmd = marker_array_cmd[:1] + ['-m'] + marker_array_cmd[1:]
-        logger.info(" ".join(marker_array_cmd))
+        logger.info(" ".join(pfbwt_cmd) + " | " + " ".join(marker_array_cmd))
         marker_array_proc = sp.run(marker_array_cmd, stdin=pfbwt_proc.stdout, stderr=sp.STDOUT, stdout=log_fp, check=True)
         pfbwt_proc.wait()
-    else:
-        sa_fp = open(args.o + ".sa", "wb")
-        sa_save_proc = sp.run(['cat'], stdin=pfbwt_proc.stdout, stdout=sa_fp, stderr=log_fp, check=True)
+    elif args.sa and args.ma:
+        logger.info("constructing marker array along with BWT. SA will also be saved")
+        tee_proc = sp.Popen(['tee', args.o + ".sa"], stdin=pfbwt_proc.stdout, stderr=log_fp, stdout=sp.PIPE)
+        marker_array_cmd = ['./marker_index_to_array', "-o", args.o + ".ma", args.o + ".mai", '-']
+        if args.mmap:
+            marker_array_cmd = marker_array_cmd[:1] + ['-m'] + marker_array_cmd[1:]
+        logger.info(" ".join(pfbwt_cmd) + " | tee " + args.o + ".sa" + " | " + " ".join(marker_array_cmd))
+        marker_array_proc = sp.run(marker_array_cmd, stdin=tee_proc.stdout, stderr=sp.STDOUT, stdout=log_fp, check=True)
+        tee_proc.wait()
         pfbwt_proc.wait()
-        sa_fp.close()
+    else:
+        logger.info(" ".join(pfbwt_cmd))
     logger.info("done constructing BWT")
     if args.clean and not args.keep_parse:
         logger.info("cleaning final parse files")
@@ -234,8 +261,9 @@ if __name__ == "__main__":
     parser.add_argument("-o", default="out", help="output prefix")
     parser.add_argument("--no_merge", action='store_true', help="generate a BWT from a non-merged parse of text collection")
     parser.add_argument("--clean", action='store_true', help="cleanup intermediate files as we go")
-    parser.add_argument("--marker_array", "-m", action='store_true', help="cleanup intermediate files as we go")
+    parser.add_argument("--ma", "-m", action='store_true', help="cleanup intermediate files as we go")
     parser.add_argument("--keep_parse", action='store_true', help="keeps the final parse (for when --clean is used)")
+    parser.add_argument("-s", "--sa", action='store_true', help="save SA to <output>.sa")
     parser.add_argument("--mmap", '-M', action='store_true', help="tell pfbwt-f64 to use mmap (use this for very large files)")
     args = parser.parse_args()
 
