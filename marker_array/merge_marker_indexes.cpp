@@ -27,7 +27,7 @@ Args parse_args(int argc, char** argv) {
 void merge_indexes(Args args) {
     FILE* ofp = fopen(args.output.data(), "wb");
     int k = 0;
-    int w = 10;
+    // int w = 10;
     int64_t delta = 0;
     uint64_t pt = 0, pm = 0, x, delim = -1;
     int state = 0;
@@ -52,7 +52,7 @@ void merge_indexes(Args args) {
             }
         }
         delta += (pt - pm);
-        delta += w;
+        // delta += w;
         ++k;
         fclose(fp);
     }

@@ -123,7 +123,7 @@ class VCFScanner {
             }
         } // TODO check for contigs that don't exist in VCF
         if (args.ref_fasta != "") {
-            ref_faidx = fai_load(args.ref_fasta.data());  
+            ref_faidx = fai_load(args.ref_fasta.data());
         }
     }
 
@@ -144,6 +144,15 @@ class VCFScanner {
         // prep
         bcf_hdr_t* hdr = synced_readers_->readers[0].header;
         int id = bcf_hdr_name2id(hdr, contig.data());
+        char* ref_seq = NULL;
+        int ref_length = 0;
+        if (ref_faidx != NULL) {
+            ref_seq = fai_fetch(ref_faidx, bcf_hdr_id2name(hdr, id), &ref_length);
+            if (ref_seq == NULL) {
+                fprintf(stderr, "contig %s does not exist in fasta, skipping...\n", bcf_hdr_id2name(hdr, id));
+                return;
+            }
+        }
         // size_t length = hdr->id[BCF_DT_CTG][id].val->info[0];
         bcf1_t* rec = bcf_init();
         bcf_sr_seek(synced_readers_, contig.data(), 0);
@@ -151,11 +160,6 @@ class VCFScanner {
         int32_t ppos = 0;
         std::vector<size_t> deltav(nhaplotypes());
         std::vector<size_t> posv(nhaplotypes());
-        char* ref_seq = NULL;
-        int ref_length = 0;
-        if (ref_faidx != NULL) {
-            ref_seq = fai_fetch(ref_faidx, bcf_hdr_id2name(hdr, id), &ref_length);
-        }
         // iterate through records
         while (bcf_sr_next_line(synced_readers_)) {
             bcf1_t* rec = bcf_sr_get_line(synced_readers_, 0);

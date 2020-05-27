@@ -131,9 +131,10 @@ class MarkerIndexWriter {
                     pmarker_vals = marker_vals;
                 }
                 marker_locs.push_back(pos);
-                process_run();
+                // process_run();
                 if (nmarkers) ++nwindows_;
             }
+            process_run();
         }
         ppos = hpos;
     }
