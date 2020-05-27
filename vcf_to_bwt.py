@@ -38,7 +38,7 @@ class VcfScanCmd:
         self.f = args.fasta
         self.S = args.sample
         self.o = args.prefix
-        self.c = '21' # TODO: make this an option
+        # self.c = args.contigs # TODO: make this an option
         self.stdout = True
         self.ref = False
         self.m = False
@@ -51,7 +51,8 @@ class VcfScanCmd:
         self.m = True
 
     def get_cmd(self):
-        cmd = ["./vcf_scan", '-f', self.f, "-c", self.c,  "-o", self.o]
+        # cmd = ["./vcf_scan", '-f', self.f, "-c", self.c,  "-o", self.o]
+        cmd = ["./vcf_scan", '-f', self.f, "-o", self.o]
         if self.stdout:
             cmd += ['--stdout']
         if self.ref:
