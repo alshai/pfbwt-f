@@ -25,7 +25,7 @@ Some modifications / additions from the original code:
 
 * **NEW** - Option to merge separate prefix-free parses from their `.dict` and `.parse` files. Use `merge_pfp` to do this.
 
-* *IMPORTANT* A padding of `w` (window-size) As are added to the end of each sequence to help facilitate the merging process. An option to prevent this padding will be added soon~
+* **IMPORTANT** A padding of `w` (window-size) As are added to the end of each sequence to help facilitate the merging process. An option to prevent this padding will be added soon~
 
 Features that will be added soon.
 
@@ -136,6 +136,8 @@ python vcf_to_bwt.py -o <output prefix> -S <samples file> <reference fasta> <vcf
 - Intermediary files, parse-related files and the final BWT will be prepended with `<output prefix>`
 
 - To use memory mapping, use `-M` option.
+
+- To generate the SA, use the `-s` option
 
 - To also generate a marker array (details to come soon), use the `-m` option.
 
