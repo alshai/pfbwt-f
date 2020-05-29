@@ -4,9 +4,7 @@
 #include <deque>
 #include <cstdio>
 #include <cinttypes>
-#include "parallel_hashmap/phmap.h"
 #include "file_wrappers.hpp"
-#include "sdsl_bv_wrappers.hpp"
 #include "rle_window_array.hpp"
 
 // false if not equal, true if equal
@@ -187,4 +185,3 @@ class MarkerIndex : public rle_window_arr<ReadConType> {
 };
 
 #endif
-

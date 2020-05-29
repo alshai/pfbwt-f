@@ -14,6 +14,8 @@ class bv_rs : public sdsl_bv_t {
 
     bv_rs(sdsl_bv_t&& rhs) : sdsl_bv_t(rhs) { }
 
+    bv_rs(const sdsl::bit_vector& bv) : sdsl_bv_t(bv) { }
+
     /*
     bv_rs(const std::vector<T>& ivec, const size_t n) {
         this->resize(n);
@@ -53,6 +55,10 @@ class bv_rs : public sdsl_bv_t {
 
     size_t select(size_t i) const {
         return select_(i);
+    }
+
+    size_t size_in_bytes() {
+        return sdsl::size_in_bytes(*this) + sdsl::size_in_bytes(rank_) + sdsl::size_in_bytes(select_);
     }
 
     private:

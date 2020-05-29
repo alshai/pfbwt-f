@@ -51,11 +51,13 @@ generate_marker_array: marker_array/generate_marker_array.cpp marker_array/marke
 merge_marker_indexes: marker_array/merge_marker_indexes.cpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/merge_marker_indexes.cpp
 
-load_marker_index: marker_array/load_marker_index.cpp marker_array/marker_index.hpp
+load_marker_index: marker_array/load_marker_index.cpp marker_array/marker_index.hpp marker_array/rle_window_array.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/load_marker_index.cpp utils.o -I./sdsl-lite/include
 
 marker_index_to_array: marker_array/marker_index_to_array.cpp marker_array/marker_index.hpp marker_array/marker_array.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/marker_index_to_array.cpp utils.o -I./ -I./sdsl-lite/include
+
+marker_array/rle_window_array.hpp : sdsl_bv_wrappers.hpp file_wrappers.hpp
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
