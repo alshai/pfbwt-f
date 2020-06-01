@@ -126,13 +126,13 @@ class vcf_to_parse_builder:
         return vcf_to_parse(args, self.ref)
 
 
-def merge_marker_indexes(args, thread_args, logger, log_fp):
-    logger.info("merging marker indexes")
+def merge_mps(args, thread_args, logger, log_fp):
+    logger.info("merging marker positions")
     length = int(open(args.o + ".ref.n").read().strip())
-    cmd = ['./merge_marker_indexes', str(length), args.o + ".mps"] + [args.o + ".ref.mps"] + [a.full_prefix + ".mps" for a in thread_args]
+    cmd = ['./merge_mps', str(length), args.o + ".mps"] + [args.o + ".ref.mps"] + [a.full_prefix + ".mps" for a in thread_args]
     logger.info(" ".join(cmd))
     sp.run(cmd, check=True, stdout=log_fp, stderr=sp.PIPE)
-    logger.info("merged marker indexes")
+    logger.info("merged marker positions")
 
 
 class PfbwtCmd:
@@ -181,7 +181,7 @@ def vcf_to_bwt(args):
         logger.info("done generating fastas from VCF")
         # merging
         if args.ma:
-            merge_marker_indexes(args, thread_args, logger, log_fp)
+            merge_mps(args, thread_args, logger, log_fp)
         logger.info("generating parse (directly from fasta files)")
         parse_cmd = ['./pfbwt-f64', '--parse-only', '-s', '--print-docs', '-o', args.o]
         cat_cmd = ['cat'] + [args.o + ".ref.fa"] + [a.full_prefix + ".fa" for a in thread_args]
@@ -201,7 +201,7 @@ def vcf_to_bwt(args):
         logger.info("done generating parses from VCF")
         # merging
         if args.ma:
-            merge_marker_indexes(args, thread_args, logger, log_fp)
+            merge_mps(args, thread_args, logger, log_fp)
         logger.info("merging parses")
         merge_pfp_cmd = ['./merge_pfp', '-s', '--parse-bwt', '--docs', '-o', args.o, '-t', str(args.threads)] + all_prefixes
         logger.info(" ".join(merge_pfp_cmd))
@@ -217,7 +217,7 @@ def vcf_to_bwt(args):
     pfbwt_cmd = pfbwt_cmd_builder.get_cmd()
     pfbwt_proc = sp.Popen(pfbwt_cmd, stdout=sp.PIPE, stderr=log_fp)
     if args.sa and not args.ma:
-        # cat output to <output>.sa, don't call marker_index_to_array
+        # cat output to <output>.sa, don't call mps_to_ma
         sa_fp = open(args.o + ".sa", "wb")
         logger.info(" ".join(pfbwt_cmd) + " | cat")
         cat_sa_proc = sp.run(['cat'], stdin=pfbwt_proc.stdout, stdout=sa_fp, stderr=log_fp, check=True)
@@ -225,7 +225,7 @@ def vcf_to_bwt(args):
         sa_fp.close()
     elif args.ma and not args.sa:
         logger.info("constructing marker array along with BWT. SA will not be saved")
-        marker_array_cmd = ['./marker_index_to_array', "-o", args.o + ".ma", args.o + ".mps", '-']
+        marker_array_cmd = ['./mps_to_ma', "-o", args.o + ".ma", args.o + ".mps", '-']
         if args.mmap:
             marker_array_cmd = marker_array_cmd[:1] + ['-m'] + marker_array_cmd[1:]
         logger.info(" ".join(pfbwt_cmd) + " | " + " ".join(marker_array_cmd))
@@ -234,7 +234,7 @@ def vcf_to_bwt(args):
     elif args.sa and args.ma:
         logger.info("constructing marker array along with BWT. SA will also be saved")
         tee_proc = sp.Popen(['tee', args.o + ".sa"], stdin=pfbwt_proc.stdout, stderr=log_fp, stdout=sp.PIPE)
-        marker_array_cmd = ['./marker_index_to_array', "-o", args.o + ".ma", args.o + ".mps", '-']
+        marker_array_cmd = ['./mps_to_ma', "-o", args.o + ".ma", args.o + ".mps", '-']
         if args.mmap:
             marker_array_cmd = marker_array_cmd[:1] + ['-m'] + marker_array_cmd[1:]
         logger.info(" ".join(pfbwt_cmd) + " | tee " + args.o + ".sa" + " | " + " ".join(marker_array_cmd))

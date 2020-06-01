@@ -12,7 +12,7 @@ EXECS=pfbwt-f64 pfbwt-f
 
 all: $(EXECS)
 
-vcf_to_bwt: pfbwt-f64 merge_pfp vcf_scan merge_marker_indexes marker_index_to_array
+vcf_to_bwt: pfbwt-f64 merge_pfp vcf_scan merge_mps mps_to_ma
 
 
 gsa/gsacak.o: gsa/gsacak.c gsa/gsacak.h
@@ -48,14 +48,14 @@ vcf_scan: marker_array/vcf_scan.cpp marker_array/vcf_scanner.hpp marker_array/ma
 generate_marker_array: marker_array/generate_marker_array.cpp marker_array/marker_array.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/generate_marker_array.cpp -I./sdsl-lite/include
 
-merge_marker_indexes: marker_array/merge_marker_indexes.cpp
-	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/merge_marker_indexes.cpp
+merge_mps: marker_array/merge_mps.cpp
+	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/merge_mps.cpp
 
-load_marker_index: marker_array/load_marker_index.cpp marker_array/marker_array.hpp
-	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/load_marker_index.cpp utils.o -I./sdsl-lite/include
+load_rlarr: marker_array/load_rlarr.cpp marker_array/marker_array.hpp
+	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/load_rlarr.cpp utils.o -I./sdsl-lite/include
 
-marker_index_to_array: marker_array/marker_index_to_array.cpp marker_array/marker_array.hpp
-	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/marker_index_to_array.cpp utils.o -I./ -I./sdsl-lite/include
+mps_to_ma: marker_array/mps_to_ma.cpp marker_array/marker_array.hpp
+	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/mps_to_ma.cpp utils.o -I./ -I./sdsl-lite/include
 
 marker_array/rle_window_array.hpp: sdsl_bv_wrappers.hpp file_wrappers.hpp
 
