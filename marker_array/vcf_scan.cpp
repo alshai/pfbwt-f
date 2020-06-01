@@ -3,7 +3,7 @@
 #include <string>
 #include <getopt.h>
 #include "marker_array/vcf_scanner.hpp"
-#include "marker_array/marker_index.hpp"
+#include "marker_array/marker_array.hpp"
 
 struct Args {
     int w = 10;
@@ -129,10 +129,10 @@ void scan_vcf_sample(Args args, std::string sample) {
     int i = args.haplotype;
     std::string fa_fname = args.out + "." + sample + "." + std::to_string(i) + ".fa";
     std::string fa_header = args.out + "." + sample + "." + std::to_string(i);
-    std::string ma_fname = args.out + "." + sample + "." + std::to_string(i) + ".mai";
+    std::string ma_fname = args.out + "." + sample + "." + std::to_string(i) + ".mps";
     std::string log_fname = args.out + "." + sample + "." + std::to_string(i) + ".log";
     if (args.ref_only) {
-        ma_fname = args.out + ".ref.mai";
+        ma_fname = args.out + ".ref.mps";
         log_fname = args.out + ".ref.log";
         fa_fname = args.out + ".ref.fa";
     }
@@ -143,10 +143,10 @@ void scan_vcf_sample(Args args, std::string sample) {
     } else {
         fa_fp = fopen(fa_fname.data(), "w");
     }
-    // MarkerIndexWriter mi_writer(args.mai ? MarkerIndexWriter(args.w, ma_fp, args.verb ? NULL : log) : MarkerIndexWriter());
-    MarkerIndexWriter mi_writer(([&]() {
-            if (args.mai) return MarkerIndexWriter(args.w, ma_fp, args.verb ? NULL : log);
-            else return MarkerIndexWriter();
+    // MarkerPositionsWriter mi_writer(args.mai ? MarkerPositionsWriter(args.w, ma_fp, args.verb ? NULL : log) : MarkerPositionsWriter());
+    MarkerPositionsWriter mi_writer(([&]() {
+            if (args.mai) return MarkerPositionsWriter(args.w, ma_fp, args.verb ? NULL : log);
+            else return MarkerPositionsWriter();
         })()
     );
     int ppos_after = 0;

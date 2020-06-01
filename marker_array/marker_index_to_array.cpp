@@ -4,6 +4,7 @@
 #include <cinttypes>
 #include <getopt.h>
 #include "marker_array/marker_array.hpp"
+// #include "marker_array/marker_index.hpp"
 #include "file_wrappers.hpp"
 
 struct Args {
@@ -43,9 +44,9 @@ Args parse_args(int argc, char** argv) {
 int main(int argc, char** argv) {
     Args args(parse_args(argc, argv));
     if (args.mmap) {
-        write_marker_array<MarkerIndex<MMapFileSource>>(args.mai_fname, args.sa_fname, args.output);
+        write_marker_array<MarkerPositions<MMapFileSource>>(args.mai_fname, args.sa_fname, args.output);
     } else {
-        write_marker_array<MarkerIndex<VecFileSource>>(args.mai_fname, args.sa_fname, args.output);
+        write_marker_array<MarkerPositions<VecFileSource>>(args.mai_fname, args.sa_fname, args.output);
     }
     return 0;
 }

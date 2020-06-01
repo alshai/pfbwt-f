@@ -5,7 +5,7 @@ import multiprocessing as mp
 import os
 import logging
 
-PARSE_EXTS  = ['bwlast', 'bwsai', 'dict', 'docs', 'fa', 'ilist', 'log', 'mai', 'n', 'occ', 'parse']
+PARSE_EXTS  = ['bwlast', 'bwsai', 'dict', 'docs', 'fa', 'ilist', 'log', 'mps', 'n', 'occ', 'parse']
 
 def clean_parse_files(prefix):
     for ext in PARSE_EXTS:
@@ -129,7 +129,7 @@ class vcf_to_parse_builder:
 def merge_marker_indexes(args, thread_args, logger, log_fp):
     logger.info("merging marker indexes")
     length = int(open(args.o + ".ref.n").read().strip())
-    cmd = ['./merge_marker_indexes', str(length), args.o + ".mai"] + [args.o + ".ref.mai"] + [a.full_prefix + ".mai" for a in thread_args]
+    cmd = ['./merge_marker_indexes', str(length), args.o + ".mps"] + [args.o + ".ref.mps"] + [a.full_prefix + ".mps" for a in thread_args]
     logger.info(" ".join(cmd))
     sp.run(cmd, check=True, stdout=log_fp, stderr=sp.PIPE)
     logger.info("merged marker indexes")
@@ -225,7 +225,7 @@ def vcf_to_bwt(args):
         sa_fp.close()
     elif args.ma and not args.sa:
         logger.info("constructing marker array along with BWT. SA will not be saved")
-        marker_array_cmd = ['./marker_index_to_array', "-o", args.o + ".ma", args.o + ".mai", '-']
+        marker_array_cmd = ['./marker_index_to_array', "-o", args.o + ".ma", args.o + ".mps", '-']
         if args.mmap:
             marker_array_cmd = marker_array_cmd[:1] + ['-m'] + marker_array_cmd[1:]
         logger.info(" ".join(pfbwt_cmd) + " | " + " ".join(marker_array_cmd))
@@ -234,7 +234,7 @@ def vcf_to_bwt(args):
     elif args.sa and args.ma:
         logger.info("constructing marker array along with BWT. SA will also be saved")
         tee_proc = sp.Popen(['tee', args.o + ".sa"], stdin=pfbwt_proc.stdout, stderr=log_fp, stdout=sp.PIPE)
-        marker_array_cmd = ['./marker_index_to_array', "-o", args.o + ".ma", args.o + ".mai", '-']
+        marker_array_cmd = ['./marker_index_to_array', "-o", args.o + ".ma", args.o + ".mps", '-']
         if args.mmap:
             marker_array_cmd = marker_array_cmd[:1] + ['-m'] + marker_array_cmd[1:]
         logger.info(" ".join(pfbwt_cmd) + " | tee " + args.o + ".sa" + " | " + " ".join(marker_array_cmd))

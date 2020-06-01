@@ -42,22 +42,24 @@ test_parser: pfparser.hpp pfbwt_io.hpp tests/test_parser.cpp utils.o
 merge_pfp: merge_pfp.cpp pfparser.hpp pfbwt_io.hpp utils.o
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ merge_pfp.cpp gsa/gsacak64.o utils.o -lz -lpthread
 
-vcf_scan: marker_array/vcf_scan.cpp marker_array/vcf_scanner.hpp marker_array/marker_index.hpp
+vcf_scan: marker_array/vcf_scan.cpp marker_array/vcf_scanner.hpp marker_array/marker_array.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/vcf_scan.cpp -lhts -I./ -I./sdsl-lite/include
 
-generate_marker_array: marker_array/generate_marker_array.cpp marker_array/marker_index.hpp marker_array/marker_array.hpp
+generate_marker_array: marker_array/generate_marker_array.cpp marker_array/marker_array.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/generate_marker_array.cpp -I./sdsl-lite/include
 
 merge_marker_indexes: marker_array/merge_marker_indexes.cpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/merge_marker_indexes.cpp
 
-load_marker_index: marker_array/load_marker_index.cpp marker_array/marker_index.hpp marker_array/rle_window_array.hpp
+load_marker_index: marker_array/load_marker_index.cpp marker_array/marker_array.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/load_marker_index.cpp utils.o -I./sdsl-lite/include
 
-marker_index_to_array: marker_array/marker_index_to_array.cpp marker_array/marker_index.hpp marker_array/marker_array.hpp
+marker_index_to_array: marker_array/marker_index_to_array.cpp marker_array/marker_array.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/marker_index_to_array.cpp utils.o -I./ -I./sdsl-lite/include
 
-marker_array/rle_window_array.hpp : sdsl_bv_wrappers.hpp file_wrappers.hpp
+marker_array/rle_window_array.hpp: sdsl_bv_wrappers.hpp file_wrappers.hpp
+
+marker_array/marker_array.hpp: marker_array/rle_window_array.hpp file_wrappers.hpp
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
