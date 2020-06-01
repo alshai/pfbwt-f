@@ -27,9 +27,11 @@ class rle_window_arr {
     rle_window_arr(std::string fname) {
         ReadConType<uint64_t> in_arr(fname);
         uint64_t size = get_last_position(in_arr) + 2;
-        sdsl::bit_vector run_starts, run_ends;
+        sdsl::bit_vector run_starts, run_ends, arr_idxs;
         run_starts.resize(size);
         run_ends.resize(size);
+        arr_idxs.resize( in_arr.size() / (3 + wsize_) * wsize_ );
+        uint64_t pos = 0;
         uint64_t rs = 0, re=0;
         uint64_t keys[2];
         std::vector<uint64_t> values;
@@ -42,7 +44,10 @@ class rle_window_arr {
                 }
                 run_starts[keys[0]] = 1;
                 run_ends[keys[1]] = 1;
-                arr_.push_back(values);
+                for (auto x: values) arr_.push_back(x);
+                arr_idxs[pos] = 1;
+                pos += values.size();
+                // arr_.push_back(values);
                 values.clear();
                 state = 0;
             }
@@ -53,9 +58,28 @@ class rle_window_arr {
             }
         }
         run_starts_ = bv_t(run_starts);
+        // run_starts_.init_rs();
         run_ends_ = bv_t(run_ends);
-        run_starts_.init_rs();
-        run_ends_.init_rs();
+        // run_ends_.init_rs();
+        arr_idxs.resize(arr_.size());
+        arr_idxs_ = bv_t(arr_idxs);
+        // arr_idxs_.init_rs();
+    }
+
+    void print_arr() {
+        /*
+        for (auto& v: arr_) {
+            for (auto x: v) {
+                fprintf(stderr, "%lu ", x);
+            }
+            fprintf(stderr, "\n");
+        }
+        */
+        for (size_t i = 0; i < arr_.size(); ++i) {
+            if (arr_idxs_[i] == 1) fprintf(stderr, "\n");
+            fprintf(stderr, "%lu ", arr_[i]);
+        }
+        fprintf(stderr, "\n");
     }
 
     /*
@@ -78,28 +102,55 @@ class rle_window_arr {
         return (run_starts_.rank(i+1) == run_ends_.rank(i) + 1);
     }
 
+    /*
     std::vector<uint64_t> at(uint64_t i) const {
         uint64_t srank = i+1 > run_starts_.size() - 1 ? run_starts_.rank(run_starts_.size()-1) : run_starts_.rank(i+1);
         uint64_t erank = i > run_ends_.size()-1 ? run_ends_.rank(run_ends_.size()-1) : run_ends_.rank(i);
         if (srank != erank + 1) return std::vector<uint64_t>();
         else return arr_[srank-1];
     }
+    */
+
+    std::vector<uint64_t> at(uint64_t i, std::vector<uint64_t>& vals) const {
+        uint64_t srank = i+1 > run_starts_.size() - 1 ? run_starts_.rank(run_starts_.size()-1) : run_starts_.rank(i+1);
+        uint64_t erank = i > run_ends_.size()-1 ? run_ends_.rank(run_ends_.size()-1) : run_ends_.rank(i);
+        if (srank != erank + 1) return std::vector<uint64_t>();
+        fprintf(stderr, "srank: %lu - idxs: ", srank);
+        uint64_t arr_idx_s = arr_idxs_.select(srank);
+        fprintf(stderr, "%lu ", arr_idx_s);
+        uint64_t arr_idx_e = srank + 1 > arr_idxs_.rank(arr_idxs_.size()) ? arr_idxs_.size() : arr_idxs_.select(srank + 1);
+        fprintf(stderr, "%lu\n", arr_idx_e);
+        vals.clear();
+        for (size_t i = arr_idx_s; i < arr_idx_e; ++i) {
+            vals.push_back(arr_[i]);
+        }
+        return vals;
+    }
+
+    std::vector<uint64_t> at(uint64_t i) const {
+        std::vector<uint64_t> vals;
+        return at(i, vals);
+    }
 
     size_t calculate_arr_size() {
+        arr_total_size_ = arr_.size();
+        /*
         arr_total_size_ = 0;
         for (auto& v: arr_) {
             arr_total_size_ += (v.size() * sizeof(uint64_t));
         }
         return arr_total_size_;
+        */
+        return arr_total_size_;
     }
 
     size_t size_in_bytes() {
         if (!arr_total_size_) calculate_arr_size();
-        fprintf(stderr, "arr_: %lu\n", arr_total_size_);
+        // fprintf(stderr, "arr_: %lu\n", arr_total_size_);
         size_t run_starts_size = run_starts_.size_in_bytes();
-        fprintf(stderr, "run starts: %lu\n", run_starts_size);
+        // fprintf(stderr, "run starts: %lu\n", run_starts_size);
         size_t run_ends_size = run_ends_.size_in_bytes();
-        fprintf(stderr, "run ends %lu\n", run_ends_size);
+        // fprintf(stderr, "run ends %lu\n", run_ends_size);
         return arr_total_size_ + run_starts_size + run_ends_size;
     }
 
@@ -117,9 +168,12 @@ class rle_window_arr {
     using bv_t = bv_rs<sdsl::sd_vector<>>;
     bv_t run_starts_;
     bv_t run_ends_;
-    std::vector<std::vector<uint64_t>> arr_;
+    bv_t arr_idxs_;
+    // std::vector<std::vector<uint64_t>> arr_;
+    std::vector<uint64_t> arr_;
     uint64_t arr_total_size_ = 0;
     uint64_t delim_ = -1;
+    int wsize_ = 10;
 };
 
 #endif

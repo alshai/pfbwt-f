@@ -10,27 +10,25 @@ class bv_rs : public sdsl_bv_t {
 
     bv_rs() = default;
 
-    bv_rs(const sdsl_bv_t& rhs) : sdsl_bv_t(rhs) { }
-
-    bv_rs(sdsl_bv_t&& rhs) : sdsl_bv_t(rhs) { }
-
-    bv_rs(const sdsl::bit_vector& bv) : sdsl_bv_t(bv) { }
-
-    /*
-    bv_rs(const std::vector<T>& ivec, const size_t n) {
-        this->resize(n);
-        for (size_t i = 0; i < ivec.size(), ++i) {
-            this->[ivec[i]] = 1;
-        }
+    bv_rs(const sdsl_bv_t& rhs) : sdsl_bv_t(rhs) { 
+        init_rs();
     }
 
-    bv_rs(const std::vector<T>& ivec, const std::vector<U>& vvec, const size_t n) {
-        this->resize(n);
-        for (size_t i = 0; i < ivec.size(); ++i) {
-            this->[ivec[i]] = vvec[i];
-        }
+    bv_rs(sdsl_bv_t&& rhs) : sdsl_bv_t(rhs) { 
+        init_rs();
     }
-    */
+
+    bv_rs& operator=(const bv_rs& rhs) {
+        sdsl_bv_t::operator=(rhs);
+        init_rs();
+        return *this;
+    }
+
+    bv_rs& operator=(bv_rs&& rhs) {
+        sdsl_bv_t::operator=(rhs);
+        init_rs();
+        return *this;
+    }
 
     bv_rs& operator=(const sdsl_bv_t& rhs) {
         sdsl_bv_t::operator=(rhs);
