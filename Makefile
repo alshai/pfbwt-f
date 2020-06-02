@@ -54,12 +54,12 @@ merge_mps: marker_array/merge_mps.cpp
 load_rlarr: marker_array/load_rlarr.cpp marker_array/marker_array.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/load_rlarr.cpp utils.o -I./sdsl-lite/include
 
-mps_to_ma: marker_array/mps_to_ma.cpp marker_array/marker_array.hpp
+mps_to_ma: marker_array/mps_to_ma.cpp marker_array/marker_array.hpp marker_array/rle_window_array.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/mps_to_ma.cpp utils.o -I./ -I./sdsl-lite/include
 
 marker_array/rle_window_array.hpp: sdsl_bv_wrappers.hpp file_wrappers.hpp
 
-marker_array/marker_array.hpp: marker_array/rle_window_array.hpp file_wrappers.hpp
+marker_array/marker_array.hpp: marker_array/rle_window_array.hpp file_wrappers.hpp marker_array/marker.hpp
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<

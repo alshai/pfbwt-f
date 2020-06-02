@@ -3,6 +3,7 @@
 #include <cinttypes>
 #include <string>
 #include <vector>
+#include "marker.hpp"
 
 struct Args {
     std::vector<std::string> fnames;
@@ -40,12 +41,13 @@ void merge_indexes(Args args) {
         while (fread(&x, sizeof(uint64_t), 1, fp) == 1) {
             if (state < 2) { // keys are first two
                 uint64_t y = x + delta + (args.ref_length * k);
+                fprintf(stderr, "x: %lu delta: %lu ref_length: %lu k: %lu y: %lu\n", x, delta, args.ref_length, k, y);
                 fwrite(&y, sizeof(uint64_t), 1, ofp);
                 pt = x;
                 ++state;
             } else if (x != delim) { // values are rest
                 fwrite(&x, sizeof(uint64_t), 1, ofp);
-                pm = x;
+                pm = get_pos(x);
             } else { // separator between runs
                 fwrite(&delim, sizeof(uint64_t), 1, ofp);
                 state = 0;

@@ -6,6 +6,7 @@
 #include <cinttypes>
 #include "file_wrappers.hpp"
 #include "rle_window_array.hpp"
+#include "marker.hpp"
 
 // false if not equal, true if equal
 template<typename T>
@@ -83,7 +84,9 @@ class MarkerPositionsWriter {
                 typename MarkerWindow::iterator it;
                 for (it = win_.begin(); it != win_.end(); ++it) {
                     if (pos + w_ > it->textpos) { // always pos <= m.textpos
-                        marker_vals.push_back(it->refpos);
+                        // marker_vals.push_back(it->refpos);
+                        // fprintf(stderr, "refpos: %lu, allele: %u, packed bits: %lx\n", it->refpos, it->allele, create_marker_t(it->refpos, it->allele));
+                        marker_vals.push_back(create_marker_t(it->refpos, it->allele)); // pack pos and allele
                         ++nmarkers;
                     } else break;
                 }
@@ -110,7 +113,9 @@ class MarkerPositionsWriter {
                 for (auto it = win_.begin(); it != win_.end(); ++it) {
                     if (pos <= it->textpos && it->textpos < pos + win_.get_w()) {
                         ++nmarkers;
-                        marker_vals.push_back(it->refpos);
+                        // marker_vals.push_back(it->refpos); // pack pos and allele
+                        // fprintf(stderr, "refpos: %lu, allele: %u, packed bits: %lx\n", it->refpos, it->allele, create_marker_t(it->refpos, it->allele));
+                        marker_vals.push_back(create_marker_t(it->refpos, it->allele)); // pack pos and allele
                     } else break;
                 }
                 if (!vec_eq(pmarker_vals, marker_vals)) {
@@ -135,7 +140,8 @@ class MarkerPositionsWriter {
             fwrite(&front, sizeof(uint64_t), 1, ofp_);
             fwrite(&back, sizeof(uint64_t), 1, ofp_);
             for (auto v: pmarker_vals) {
-                fwrite(&v, sizeof(uint64_t), 1, ofp_);
+                fprintf(stderr, "writing: %lx\n", v);
+                fwrite(&v, sizeof(MarkerT), 1, ofp_);
             }
             fwrite(&delim_, sizeof(uint64_t), 1, ofp_);
         }
@@ -152,7 +158,7 @@ class MarkerPositionsWriter {
     bool inc_ = false;
 
     std::vector<uint64_t> marker_locs;
-    std::vector<uint64_t> marker_vals, pmarker_vals, vbuf; // switch from uint64_t to std::pair
+    std::vector<MarkerT> marker_vals, pmarker_vals;
 };
 
 
@@ -183,6 +189,7 @@ void write_marker_array(std::string mai_fname, std::string sa_fname, std::string
     FILE* ofp = fopen(output == "" ? "out" : output.data(), "wb");
     fprintf(stderr, "opening marker index from %s\n", mai_fname.data());
     MPos mai(mai_fname);
+    fprintf(stderr, "opened marker index\n");
     constexpr uint64_t delim = -1;
     uint64_t s;
     uint64_t i = 0;

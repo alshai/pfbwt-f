@@ -28,6 +28,7 @@ class rle_window_arr {
         ReadConType<uint64_t> in_arr(fname);
         uint64_t size = get_last_position(in_arr) + 2;
         sdsl::bit_vector run_starts, run_ends, arr_idxs;
+        fprintf(stderr, "SIZE: %lu\n", size);
         run_starts.resize(size);
         run_ends.resize(size);
         arr_idxs.resize( in_arr.size() / (3 + wsize_) * wsize_ );
@@ -161,6 +162,7 @@ class rle_window_arr {
         while (in_arr[i] != delim_) {
             --i;
         }
+        fprintf(stderr, "last position at: %lu\n", i+2);
         return in_arr[i+2]; //  delim keys[0] keys[1] val1 val2 ... delim EOF
     }
 
