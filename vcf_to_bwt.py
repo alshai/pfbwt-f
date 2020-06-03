@@ -139,6 +139,7 @@ class PfbwtCmd:
 
     def __init__(self, args):
         self.sa = args.sa
+        self.rssa = args.rssa
         self.ma = args.ma
         self.mmap = args.mmap
         self.o = args.o
@@ -149,6 +150,8 @@ class PfbwtCmd:
             cmd += ['--stdout', 'sa', '-s']
         if self.mmap:
             cmd += ['-m']
+        if self.rssa:
+            cmd += ['-r']
         return cmd
 
 
@@ -255,16 +258,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("fasta", help='reference fasta file')
     parser.add_argument("vcf", nargs='+', help='vcf files containing haplotype panel')
-    parser.add_argument("--samples", "-S", help="file containing new-line delimited desired samples in vcf. defaults to all")
+    parser.add_argument("--samples", "-S",
+                        help="file containing new-line delimited desired samples in vcf. defaults to all")
     parser.add_argument("--threads", "-t", type=int, default=int(1), help="number of threads (default: 1)")
     parser.add_argument("--save_fasta", "-f", action='store_true', help="store fasta sequences generated from VCFs")
     parser.add_argument("-o", default="out", help="output prefix")
-    parser.add_argument("--no_merge", action='store_true', help="generate a BWT from a non-merged parse of text collection")
+    parser.add_argument("--no_merge", action='store_true',
+                        help="generate a BWT from a non-merged parse of text collection")
     parser.add_argument("--clean", action='store_true', help="cleanup intermediate files as we go")
     parser.add_argument("--ma", "-m", action='store_true', help="cleanup intermediate files as we go")
     parser.add_argument("--keep_parse", action='store_true', help="keeps the final parse (for when --clean is used)")
     parser.add_argument("-s", "--sa", action='store_true', help="save SA to <output>.sa")
-    parser.add_argument("--mmap", '-M', action='store_true', help="tell pfbwt-f64 to use mmap (use this for very large files)")
+    parser.add_argument("-r", "--rssa", action='store_true',
+                        help="save run-length sampled SA to <output>.ssa (run-starts) and <output>.esa (run-ends)")
+    parser.add_argument("--mmap", '-M', action='store_true',
+                        help="tell pfbwt-f64 to use mmap (use this for very large files)")
     args = parser.parse_args()
 
     vcf_to_bwt(args)
