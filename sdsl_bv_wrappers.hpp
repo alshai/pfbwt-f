@@ -14,9 +14,18 @@ class bv_rs : public sdsl_bv_t {
         init_rs();
     }
 
-    bv_rs(sdsl_bv_t&& rhs) : sdsl_bv_t(rhs) { 
+    bv_rs(sdsl_bv_t&& rhs) : sdsl_bv_t(std::move(rhs)) { 
         init_rs();
     }
+
+    bv_rs(const bv_rs& rhs) : sdsl_bv_t(rhs) { 
+        init_rs();
+    }
+
+    bv_rs(bv_rs&& rhs) : sdsl_bv_t(std::move(rhs)) { 
+        init_rs();
+    }
+
 
     bv_rs& operator=(const bv_rs& rhs) {
         sdsl_bv_t::operator=(rhs);
@@ -25,11 +34,12 @@ class bv_rs : public sdsl_bv_t {
     }
 
     bv_rs& operator=(bv_rs&& rhs) {
-        sdsl_bv_t::operator=(rhs);
+        sdsl_bv_t::operator=(std::move(rhs));
         init_rs();
         return *this;
     }
 
+    /*
     bv_rs& operator=(const sdsl_bv_t& rhs) {
         sdsl_bv_t::operator=(rhs);
         init_rs();
@@ -37,10 +47,11 @@ class bv_rs : public sdsl_bv_t {
     }
 
     bv_rs& operator=(sdsl_bv_t&& rhs) {
-        sdsl_bv_t::operator=(rhs);
+        sdsl_bv_t::operator=(std::move(rhs));
         init_rs();
         return *this;
     }
+    */
 
     void init_rs() {
         sdsl::util::init_support(rank_,   this);

@@ -3,13 +3,32 @@
 
 #include <vector>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <string>
 #include "mio.hpp"
-extern "C" {
-#include "utils.h"
+
+void die_(const char* string) {
+    fprintf(stderr, "%s\n", string);
+    exit(1);
 }
 
-/* load file using mmap and treat it as an STL container (mio) 
+size_t get_file_size_(const char* path) {
+    if (!strcmp(path, "-")) {
+        die_("cannot get file size from stdin");
+    }
+    FILE* fp = fopen(path, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "%s: ", path);
+        die_("error opening file");
+    }
+    fseek(fp, 0, SEEK_END);
+    size_t size = ftell(fp);
+    fclose(fp);
+    return size;
+}
+
+/* load file using mmap and treat it as an STL container (mio)
  * TODO: create a MAP_PRIVATE version
  */
 
@@ -32,14 +51,14 @@ class MMapFile {
         mm(path)
     {
         if (!mm.size()) {
-            die("MMapFile: file empty!");
+            die_("MMapFile: file empty!");
         }
         if (mm.size() %  sizeof(T) != 0) {
-            die("error: file is not evenly divided into size(T)-sized words");
+            die_("error: file is not evenly divided into size(T)-sized words");
         }
     }
 
-    /* start fresh from a file, given a size 
+    /* start fresh from a file, given a size
      * size is number of elements, not number of bytes
      */
     void init_file(std::string path, size_t size) {
@@ -49,10 +68,10 @@ class MMapFile {
             fclose(fp);
         } else {
             fprintf(stderr, "%s: ", path.data());
-            die("error opening file");
+            die_("error opening file");
         }
         if (truncate(path.data(), size * sizeof(T))) {
-            die("error setting file size");
+            die_("error setting file size");
         }
         // map file
         std::error_code e;
@@ -60,12 +79,12 @@ class MMapFile {
     }
 
     template<mio::access_mode A = AccessMode, typename = typename std::enable_if<A == mio::access_mode::write>::type>
-    reference operator[](const size_type i) noexcept { 
-        return reinterpret_cast<T*>(mm.data())[i]; 
+    reference operator[](const size_type i) noexcept {
+        return reinterpret_cast<T*>(mm.data())[i];
     }
 
-    const_reference operator[](const size_type i) const noexcept { 
-        return reinterpret_cast<const T*>(mm.data())[i]; 
+    const_reference operator[](const size_type i) const noexcept {
+        return reinterpret_cast<const T*>(mm.data())[i];
     }
 
     size_t size() const noexcept {
@@ -73,20 +92,20 @@ class MMapFile {
     }
 
     template<mio::access_mode A = AccessMode, typename = typename std::enable_if<A == mio::access_mode::write>::type>
-    T* data() noexcept { 
-        return reinterpret_cast<T*>(mm.data()); 
+    T* data() noexcept {
+        return reinterpret_cast<T*>(mm.data());
     }
 
-    const T* data() const noexcept { 
+    const T* data() const noexcept {
         return reinterpret_cast<const T*>(mm.data());
     }
 
-    template<mio::access_mode A = AccessMode, typename = typename std::enable_if<A == mio::access_mode::write>::type> 
+    template<mio::access_mode A = AccessMode, typename = typename std::enable_if<A == mio::access_mode::write>::type>
     iterator begin() noexcept { return data(); }
     const_iterator begin() const noexcept { return data(); }
     const_iterator cbegin() const noexcept { return data(); }
 
-    template<mio::access_mode A = AccessMode, typename = typename std::enable_if<A == mio::access_mode::write>::type> 
+    template<mio::access_mode A = AccessMode, typename = typename std::enable_if<A == mio::access_mode::write>::type>
     iterator end() noexcept { return data() + size(); }
     const_iterator end() const noexcept { return data() + size(); }
     const_iterator cend() const noexcept { return data() + size(); }
@@ -99,7 +118,7 @@ class MMapFile {
 template<typename T>
 using MMapFileSource = MMapFile<T, mio::access_mode::read>;
 
-/* NOTE: I think this is MAP_SHARED by default. 
+/* NOTE: I think this is MAP_SHARED by default.
  * TODO: add option for MAP_PRIVATE */
 template<typename T>
 using MMapFileSink = MMapFile<T, mio::access_mode::write>;
@@ -114,7 +133,7 @@ class VecFileSource : private std::vector<T> {
     VecFileSource() = default;
 
     VecFileSource(std::string path) {
-        size_t size = get_file_size(path.data());
+        size_t size = get_file_size_(path.data());
         size_t nelems = size / sizeof(T);
         FILE* fp = fopen(path.data(), "rb");
         this->resize(nelems);
@@ -142,7 +161,7 @@ class VecFileSink : public std::vector<T> {
 
     /* load data from whole file */
     VecFileSink(std::string path) : fname(path) {
-        size_t size = get_file_size(path.data());
+        size_t size = get_file_size_(path.data());
         size_t nelems = size / sizeof(T);
         FILE* fp = fopen(path.data(), "rb");
         this->resize(nelems);
@@ -155,14 +174,14 @@ class VecFileSink : public std::vector<T> {
     /* use when initialized with default constructor in order to reserve heap space
      * for an empty vector and store the file name to which the vector will be written
      * upon destruction
-     */ 
+     */
     void init_file(std::string path, size_t s) {
         fname = path;
         this->resize(s);
     }
 
     protected:
-    
+
     std::string fname;
 };
 
@@ -171,7 +190,7 @@ class VecFileSink : public std::vector<T> {
 template<typename T>
 class VecFileSinkShared : public VecFileSink<T> {
     public:
-    
+
     VecFileSinkShared() = default;
     VecFileSinkShared(std::string s) : VecFileSink<T>(s) {};
 
@@ -182,7 +201,7 @@ class VecFileSinkShared : public VecFileSink<T> {
         } else {
             FILE* fp = fopen(this->fname.data(), "wb");
             if (fwrite(&(this->data())[0], sizeof(T), this->size(), fp) != this->size()) {
-                die("unable to write data");
+                die_("unable to write data");
             }
             fclose(fp);
         }

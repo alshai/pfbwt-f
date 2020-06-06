@@ -84,8 +84,6 @@ class MarkerPositionsWriter {
                 typename MarkerWindow::iterator it;
                 for (it = win_.begin(); it != win_.end(); ++it) {
                     if (pos + w_ > it->textpos) { // always pos <= m.textpos
-                        // marker_vals.push_back(it->refpos);
-                        // fprintf(stderr, "refpos: %lu, allele: %u, packed bits: %lx\n", it->refpos, it->allele, create_marker_t(it->refpos, it->allele));
                         marker_vals.push_back(create_marker_t(it->refpos, it->allele)); // pack pos and allele
                         ++nmarkers;
                     } else break;
@@ -113,8 +111,6 @@ class MarkerPositionsWriter {
                 for (auto it = win_.begin(); it != win_.end(); ++it) {
                     if (pos <= it->textpos && it->textpos < pos + win_.get_w()) {
                         ++nmarkers;
-                        // marker_vals.push_back(it->refpos); // pack pos and allele
-                        // fprintf(stderr, "refpos: %lu, allele: %u, packed bits: %lx\n", it->refpos, it->allele, create_marker_t(it->refpos, it->allele));
                         marker_vals.push_back(create_marker_t(it->refpos, it->allele)); // pack pos and allele
                     } else break;
                 }
@@ -140,7 +136,6 @@ class MarkerPositionsWriter {
             fwrite(&front, sizeof(uint64_t), 1, ofp_);
             fwrite(&back, sizeof(uint64_t), 1, ofp_);
             for (auto v: pmarker_vals) {
-                fprintf(stderr, "writing: %lx\n", v);
                 fwrite(&v, sizeof(MarkerT), 1, ofp_);
             }
             fwrite(&delim_, sizeof(uint64_t), 1, ofp_);
@@ -187,9 +182,7 @@ template <typename MPos=MarkerPositions<>>
 void write_marker_array(std::string mai_fname, std::string sa_fname, std::string output = "") {
     FILE* sa_fp = sa_fname == "-" ? stdin : fopen(sa_fname.data(), "rb");
     FILE* ofp = fopen(output == "" ? "out" : output.data(), "wb");
-    fprintf(stderr, "opening marker index from %s\n", mai_fname.data());
     MPos mai(mai_fname);
-    fprintf(stderr, "opened marker index\n");
     constexpr uint64_t delim = -1;
     uint64_t s;
     uint64_t i = 0;
@@ -227,22 +220,4 @@ void write_marker_array(std::string mai_fname, std::string sa_fname, std::string
 template<template<typename> typename ReadConType=VecFileSource>
 using MarkerArray = rle_window_arr<ReadConType>;
 
-/*
-template<template<typename> typename ReadConType=VecFileSource>
-class MarkerArray : public rle_window_arr<ReadConType> {
-
-    public:
-
-    MarkerArray() {}
-    MarkerArray(std::string fname) : rle_window_arr<ReadConType>(fname) {}
-
-    bool has_markers(uint64_t i) const {
-        return this->has_entry(i);
-    }
-
-    std::vector<uint64_t> get_markers(uint64_t i) const {
-        return this->at(i);
-    }
-};
-*/
 #endif
