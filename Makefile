@@ -60,9 +60,15 @@ dump_markers: marker_array/dump_markers.cpp marker_array/marker.hpp
 mps_to_ma: marker_array/mps_to_ma.cpp marker_array/marker_array.hpp marker_array/rle_window_array.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ marker_array/mps_to_ma.cpp utils.o -I./ -I./sdsl-lite/include
 
+test_load: tests/test_load.cpp marker_array/marker_array.hpp marker_array/rle_window_array.hpp
+	$(CXX) $(CXX_FLAGS) -DM64 -o $@ tests/test_load.cpp -I./ -I./sdsl-lite/include
+
+test_markers: tests/test_markers.cpp marker_array/marker_array.hpp marker_array/rle_window_array.hpp
+	$(CXX) $(CXX_FLAGS) -DM64 -o $@ tests/test_markers.cpp -I./ -I./sdsl-lite/include
+
 marker_array/rle_window_array.hpp: sdsl_bv_wrappers.hpp file_wrappers.hpp
 
-marker_array/marker_array.hpp: marker_array/rle_window_array.hpp file_wrappers.hpp marker_array/marker.hpp
+marker_array/marker_array.hpp: marker_array/marker_array.hpp marker_array/rle_window_array.hpp file_wrappers.hpp marker_array/marker.hpp
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<

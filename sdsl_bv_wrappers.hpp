@@ -10,19 +10,19 @@ class bv_rs : public sdsl_bv_t {
 
     bv_rs() = default;
 
-    bv_rs(const sdsl_bv_t& rhs) : sdsl_bv_t(rhs) { 
+    bv_rs(const sdsl_bv_t& rhs) : sdsl_bv_t(rhs) {
         init_rs();
     }
 
-    bv_rs(sdsl_bv_t&& rhs) : sdsl_bv_t(std::move(rhs)) { 
+    bv_rs(sdsl_bv_t&& rhs) : sdsl_bv_t(std::move(rhs)) {
         init_rs();
     }
 
-    bv_rs(const bv_rs& rhs) : sdsl_bv_t(rhs) { 
+    bv_rs(const bv_rs& rhs) : sdsl_bv_t(rhs) {
         init_rs();
     }
 
-    bv_rs(bv_rs&& rhs) : sdsl_bv_t(std::move(rhs)) { 
+    bv_rs(bv_rs&& rhs) : sdsl_bv_t(std::move(rhs)) {
         init_rs();
     }
 
@@ -68,6 +68,11 @@ class bv_rs : public sdsl_bv_t {
 
     size_t size_in_bytes() {
         return sdsl::size_in_bytes(*this) + sdsl::size_in_bytes(rank_) + sdsl::size_in_bytes(select_);
+    }
+
+    void load(std::istream& in) {
+        sdsl_bv_t::load(in);
+        init_rs();
     }
 
     private:

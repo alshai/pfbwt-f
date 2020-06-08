@@ -35,7 +35,6 @@ class rle_window_arr {
                 for (auto x: values) arr_.push_back(x);
                 arr_idxs[pos] = 1;
                 pos += values.size();
-                // arr_.push_back(values);
                 values.clear();
                 state = 0;
             }
@@ -82,6 +81,27 @@ class rle_window_arr {
         arr_idxs_ = std::move(rhs.arr_idxs_);
         arr_ = std::move(rhs.arr_);
         wsize_ = rhs.wsize_;
+    }
+
+    bool operator==(const rle_window_arr& rhs) const {
+        if (run_starts_ != rhs.run_starts_) {
+            return false;
+        }
+        if (run_ends_ != rhs.run_ends_) {
+            return false;
+        }
+        if (arr_idxs_ != rhs.arr_idxs_) {
+            return false;
+        }
+        if (arr_.size() != rhs.arr_.size()) {
+            return false;
+        }
+        for (size_t i = 0; i < arr_.size(); ++i) {
+            if (arr_[i] != rhs.arr_[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     bool has_entry(uint64_t i) const {
@@ -137,6 +157,32 @@ class rle_window_arr {
         fprintf(stderr, "\n");
     }
 
+    size_t serialize(std::ostream& out) {
+        size_t nbytes = 0;
+        nbytes += run_starts_.serialize(out);
+        nbytes += run_ends_.serialize(out);
+        nbytes += arr_idxs_.serialize(out);
+        size_t arr_size = arr_.size();
+        out.write(reinterpret_cast<char*>(&arr_size), sizeof(arr_size));
+        nbytes += sizeof(arr_size);
+        out.write(reinterpret_cast<char*>(arr_.data()), sizeof(arr_[0]) * arr_.size());
+        nbytes += sizeof(arr_[0]) * arr_.size();
+        out.write(reinterpret_cast<char*>(&wsize_), sizeof(wsize_));
+        nbytes += sizeof(wsize_);
+        return nbytes;
+    }
+
+    void load(std::istream& in) {
+        run_starts_.load(in);
+        run_ends_.load(in);
+        arr_idxs_.load(in);
+        size_t arr_size;
+        in.read(reinterpret_cast<char*>(&arr_size), sizeof(arr_size));
+        arr_.resize(arr_size);
+        in.read(reinterpret_cast<char*>(arr_.data()), sizeof(uint64_t) * arr_size);
+        in.read(reinterpret_cast<char*>(&wsize_), sizeof(wsize_));
+    }
+
     private:
 
     inline uint64_t run_starts_rank(uint64_t i) const {
@@ -147,7 +193,7 @@ class rle_window_arr {
 
     // will fail on i == 0
     inline uint64_t run_starts_select(uint64_t i) const {
-        return i >= run_starts_.rank(run_starts_.size())
+        return i > run_starts_.rank(run_starts_.size())
                ? run_starts_.size()
                : run_starts_.select(i);
     }
@@ -160,13 +206,13 @@ class rle_window_arr {
 
     // will fail on i == 0
     inline uint64_t run_ends_select(uint64_t i) const {
-        return i >= run_ends_.rank(run_ends_.size())
+        return i > run_ends_.rank(run_ends_.size())
                ? run_ends_.size()
                : run_ends_.select(i);
     }
 
     inline uint64_t arr_idxs_select(uint64_t i) const {
-        return i >= arr_idxs_.rank(arr_idxs_.size()-1)
+        return i > arr_idxs_.rank(arr_idxs_.size())
                ? arr_idxs_.size()
                : arr_idxs_.select(i);
     }
