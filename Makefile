@@ -49,11 +49,6 @@ dump_markers: src/dump_markers.cpp include/marker.hpp
 mps_to_ma: src/mps_to_ma.cpp include/marker_array.hpp
 	$(CXX) $(CXX_FLAGS) -DM64 -o $@ src/mps_to_ma.cpp src/utils.o $(INC) $(SDSL_INC)
 
-include/marker_array.hpp: include/marker_array.hpp include/rle_window_array.hpp include/marker.hpp
-
-include/rle_window_array.hpp: include/sdsl_bv_wrappers.hpp include/file_wrappers.hpp
-
-
 src/utils.o: src/utils.c include/utils.h
 	$(CC) $(CFLAGS) -c -o $@ $< $(INC)
 
