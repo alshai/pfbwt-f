@@ -3,8 +3,7 @@
 #include <cstring>
 #include <cinttypes>
 #include <getopt.h>
-#include "marker_array/marker_array.hpp"
-// #include "marker_array/marker_index.hpp"
+#include "marker_array.hpp"
 #include "file_wrappers.hpp"
 
 struct Args {

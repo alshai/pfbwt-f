@@ -2,8 +2,8 @@
 #include <vector>
 #include <string>
 #include <getopt.h>
-#include "marker_array/vcf_scanner.hpp"
-#include "marker_array/marker_array.hpp"
+#include "vcf_scanner.hpp"
+#include "marker_array.hpp"
 
 struct Args {
     int w = 10;

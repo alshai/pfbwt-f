@@ -41,7 +41,6 @@ void merge_indexes(Args args) {
         while (fread(&x, sizeof(uint64_t), 1, fp) == 1) {
             if (state < 2) { // keys are first two
                 uint64_t y = x + delta + (args.ref_length * k);
-                fprintf(stderr, "x: %lu delta: %lu ref_length: %lu k: %lu y: %lu\n", x, delta, args.ref_length, k, y);
                 fwrite(&y, sizeof(uint64_t), 1, ofp);
                 pt = x;
                 ++state;
@@ -54,7 +53,6 @@ void merge_indexes(Args args) {
             }
         }
         delta += (pt - pm);
-        // delta += w;
         ++k;
         fclose(fp);
     }
