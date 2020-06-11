@@ -8,6 +8,11 @@ import os
 import logging
 
 PARSE_EXTS  = ['bwlast', 'bwsai', 'dict', 'docs', 'fa', 'ilist', 'log', 'mps', 'n', 'occ', 'parse']
+PFBWTF_EXE = './pfbwt-f64' if os.path.exists('./pfbwt-f64') else 'pfbwt-f64'
+MERGE_PFP_EXE = './merge_pfp' if os.path.exists('./merge_pfp') else 'merge_pfp'
+VCF_SCAN_EXE = './vcf_scan' if os.path.exists('./vcf_scan') else 'vcf_scan'
+MERGE_MPS_EXE = './merge_mps' if os.path.exists('./merge_mps') else 'merge_mps'
+MPS_TO_MA_EXE = './mps_to_ma' if os.path.exists('./mps_to_ma') else 'mps_to_ma'
 
 def clean_parse_files(prefix):
     for ext in PARSE_EXTS:
@@ -53,8 +58,7 @@ class VcfScanCmd:
         self.m = True
 
     def get_cmd(self):
-        # cmd = ["./vcf_scan", '-f', self.f, "-c", self.c,  "-o", self.o]
-        cmd = ["./vcf_scan", '-f', self.f, "-o", self.o]
+        cmd = [VCF_SCAN_EXE, '-f', self.f, "-o", self.o]
         if self.stdout:
             cmd += ['--stdout']
         if self.ref:
@@ -100,13 +104,13 @@ def vcf_to_parse(args, ref=False):
         fa_fname = full_prefix + ".fa"
         with open(fa_fname, "w") as fa_fp:
             vcf_scan_proc = sp.run(vcf_scan_cmd, stdout=fa_fp, stderr=log)
-        pfbwt_cmd = ['./pfbwt-f64', '--parse-only', '--print-docs', '-s', '-o', full_prefix, fa_fname]
+        pfbwt_cmd = [PFBWTF_EXE, '--parse-only', '--print-docs', '-s', '-o', full_prefix, fa_fname]
         if args.mmap:
             pfbwt_cmd = pfbwt_cmd[:1] + ['-m'] + pfbwt_cmd[1:]
         pfbwt_proc = sp.run(pfbwt_cmd, check=True, stdout=log, stderr=sp.PIPE)
     else:
         vcf_scan_proc = sp.Popen(vcf_scan_cmd, stdout=sp.PIPE, stderr=log)
-        pfbwt_cmd = ['./pfbwt-f64', '--parse-only', '--print-docs', '-s', '-o', full_prefix]
+        pfbwt_cmd = [PFBWTF_EXE, '--parse-only', '--print-docs', '-s', '-o', full_prefix]
         if args.mmap:
             pfbwt_cmd = pfbwt_cmd[:1] + ['-m'] + pfbwt_cmd[1:]
         pfbwt_proc = sp.run(pfbwt_cmd, stdin=vcf_scan_proc.stdout, stdout=log, stderr=sp.PIPE, check=True)
@@ -131,7 +135,7 @@ class vcf_to_parse_builder:
 def merge_mps(args, thread_args, logger, log_fp):
     logger.info("merging marker positions")
     length = int(open(args.o + ".ref.n").read().strip())
-    cmd = ['./merge_mps', str(length), args.o + ".mps"] + [args.o + ".ref.mps"] + [a.full_prefix + ".mps" for a in thread_args]
+    cmd = [MERGE_MPS_EXE, str(length), args.o + ".mps"] + [args.o + ".ref.mps"] + [a.full_prefix + ".mps" for a in thread_args]
     logger.info(" ".join(cmd))
     sp.run(cmd, check=True, stdout=log_fp, stderr=sp.PIPE)
     logger.info("merged marker positions")
@@ -147,7 +151,7 @@ class PfbwtCmd:
         self.o = args.o
 
     def get_cmd(self):
-        cmd = ['./pfbwt-f64', '--pfbwt-only', '--print-docs', '-o', args.o]
+        cmd = [PFBWTF_EXE, '--pfbwt-only', '--print-docs', '-o', args.o]
         if self.sa or self.ma:
             cmd += ['--stdout', 'sa', '-s']
         if self.mmap:
@@ -188,7 +192,7 @@ def vcf_to_bwt(args):
         if args.ma:
             merge_mps(args, thread_args, logger, log_fp)
         logger.info("generating parse (directly from fasta files)")
-        parse_cmd = ['./pfbwt-f64', '--parse-only', '-s', '--print-docs', '-o', args.o]
+        parse_cmd = [PFBWTF_EXE, '--parse-only', '-s', '--print-docs', '-o', args.o]
         cat_cmd = ['cat'] + [args.o + ".ref.fa"] + [a.full_prefix + ".fa" for a in thread_args]
         cat_proc = sp.Popen(cat_cmd, stdout=sp.PIPE, stderr=log_fp)
         logger.info(" ".join(cat_cmd) + " | " + " ".join(parse_cmd))
@@ -208,7 +212,7 @@ def vcf_to_bwt(args):
         if args.ma:
             merge_mps(args, thread_args, logger, log_fp)
         logger.info("merging parses")
-        merge_pfp_cmd = ['./merge_pfp', '-s', '--parse-bwt', '--docs', '-o', args.o, '-t', str(args.threads)] + all_prefixes
+        merge_pfp_cmd = [MERGE_PFP_EXE, '-s', '--parse-bwt', '--docs', '-o', args.o, '-t', str(args.threads)] + all_prefixes
         logger.info(" ".join(merge_pfp_cmd))
         sp.run(merge_pfp_cmd, stdout=log_fp, stderr=sp.PIPE, check=True)
         logger.info("done merging parses")
@@ -230,7 +234,7 @@ def vcf_to_bwt(args):
         sa_fp.close()
     elif args.ma and not args.sa:
         logger.info("constructing marker array along with BWT. SA will not be saved")
-        marker_array_cmd = ['./mps_to_ma', "-o", args.o + ".ma", args.o + ".mps", '-']
+        marker_array_cmd = [MPS_TO_MA_EXE, "-o", args.o + ".ma", args.o + ".mps", '-']
         if args.mmap:
             marker_array_cmd = marker_array_cmd[:1] + ['-m'] + marker_array_cmd[1:]
         logger.info(" ".join(pfbwt_cmd) + " | " + " ".join(marker_array_cmd))
@@ -239,7 +243,7 @@ def vcf_to_bwt(args):
     elif args.sa and args.ma:
         logger.info("constructing marker array along with BWT. SA will also be saved")
         tee_proc = sp.Popen(['tee', args.o + ".sa"], stdin=pfbwt_proc.stdout, stderr=log_fp, stdout=sp.PIPE)
-        marker_array_cmd = ['./mps_to_ma', "-o", args.o + ".ma", args.o + ".mps", '-']
+        marker_array_cmd = [MPS_TO_MA_EXE, "-o", args.o + ".ma", args.o + ".mps", '-']
         if args.mmap:
             marker_array_cmd = marker_array_cmd[:1] + ['-m'] + marker_array_cmd[1:]
         logger.info(" ".join(pfbwt_cmd) + " | tee " + args.o + ".sa" + " | " + " ".join(marker_array_cmd))
@@ -268,7 +272,7 @@ if __name__ == "__main__":
     parser.add_argument("--no_merge", action='store_true',
                         help="generate a BWT from a non-merged parse of text collection")
     parser.add_argument("--clean", action='store_true', help="cleanup intermediate files as we go")
-    parser.add_argument("--ma", "-m", action='store_true', help="cleanup intermediate files as we go")
+    parser.add_argument("--ma", "-m", action='store_true', help="build marker array")
     parser.add_argument("--keep_parse", action='store_true', help="keeps the final parse (for when --clean is used)")
     parser.add_argument("-s", "--sa", action='store_true', help="save SA to <output>.sa")
     parser.add_argument("-r", "--rssa", action='store_true',
