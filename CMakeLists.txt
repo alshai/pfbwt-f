@@ -31,6 +31,7 @@ add_executable(merge_mps src/merge_mps.cpp)
 add_executable(dump_markers src/dump_markers.cpp)
 add_executable(mps_to_ma src/mps_to_ma.cpp src/utils.c)
 
-file(COPY ${PROJECT_SOURCE_DIR}/vcf_to_bwt.py DESTINATION bin FILE_PERMISSIONS OWNER_READ OWNER_EXECUTE)
+# file(COPY ${PROJECT_SOURCE_DIR}/vcf_to_bwt.py DESTINATION bin FILE_PERMISSIONS OWNER_READ OWNER_EXECUTE)
+install(FILES ${PROJECT_SOURCE_DIR}/vcf_to_bwt.py DESTINATION bin PERMISSIONS OWNER_READ OWNER_EXECUTE)
 install(TARGETS pfbwt-f64 merge_pfp vcf_scan merge_mps dump_markers mps_to_ma
         DESTINATION bin)
