@@ -73,6 +73,7 @@ class rle_window_arr {
         arr_idxs_ = rhs.arr_idxs_;
         arr_ = rhs.arr_;
         wsize_ = rhs.wsize_;
+        return *this;
     }
 
     rle_window_arr& operator=(rle_window_arr&& rhs) {
@@ -81,6 +82,7 @@ class rle_window_arr {
         arr_idxs_ = std::move(rhs.arr_idxs_);
         arr_ = std::move(rhs.arr_);
         wsize_ = rhs.wsize_;
+        return *this;
     }
 
     bool operator==(const rle_window_arr& rhs) const {
@@ -130,7 +132,7 @@ class rle_window_arr {
         uint64_t e_rs_pos = run_starts_select(e_rs_rank);
         if (e_rs_pos <= s) {
             uint64_t e_re_pos = run_ends_select(e_rs_rank);
-            return e_re_pos >= s ? arr_at_(e_rs_rank, vals) : vals;
+            return e_re_pos >= s ? arr_at_(e_rs_rank-1, vals) : vals;
         }
         uint64_t s_rs_rank = run_starts_rank(s);
         uint64_t s_rs_pos = run_starts_select(s_rs_rank);
@@ -146,6 +148,11 @@ class rle_window_arr {
 
     std::vector<uint64_t> at_range(uint64_t s, uint64_t e) const {
         std::vector<uint64_t> vals;
+        // for (uint64_t i = s; i <= e; ++i) {
+        //     auto buf = at(i);
+        //     for (auto x: buf) vals.push_back(x);
+        // }
+        // return vals;
         return at_range(s, e, vals);
     }
 
