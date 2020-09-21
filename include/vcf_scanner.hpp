@@ -75,15 +75,26 @@ class VCFScanner {
         }
         // synced_reader helps us iterate by contig
         synced_readers_ = bcf_sr_init();
+        if (synced_readers_ == NULL) {
+            fprintf(stderr, "error intiitalizing synced readers\n");
+            exit(1);
+        }
         bcf_sr_set_opt(synced_readers_, BCF_SR_REQUIRE_IDX);
         bcf_sr_set_opt(synced_readers_, BCF_SR_PAIR_LOGIC, BCF_SR_PAIR_SNPS, BCF_SR_PAIR_SNP_REF);
         for (auto vcf: vcf_fnames_)  {
             fprintf(stderr, "adding reader: %s\n", vcf.data());
-            bcf_sr_add_reader(synced_readers_, vcf.data());
+            if (!bcf_sr_add_reader(synced_readers_, vcf.data())) {
+                fprintf(stderr, "error adding reader %s\n", vcf.data());
+                if (synced_readers_->errnum == 1) {
+                    fprintf(stderr, "VCF must be in compressed (bgzip or bcf) format!\n");
+                }
+                exit(1);
+            }
         }
         int err, err2 = 0;
         if (samples_fname_ != "") { // default to using the first name, if provided
             err = bcf_sr_set_samples(synced_readers_, samples_fname_.data(), 1);
+            fprintf(stderr, "added samples from %s\n", samples_fname_.data());
             for (int i = 0; i < synced_readers_->nreaders; ++i) {
                 bcf_hdr_t* hdr = synced_readers_->readers[i].header;
                 err2 += bcf_hdr_set_samples(hdr, samples_fname_.data(), 1);

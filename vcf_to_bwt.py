@@ -37,6 +37,7 @@ class VcfToXArgs:
         self.ref_only = False
         self.m = other.ma
         self.mmap = other.mmap
+        self.ma_wsize = other.ma_wsize
 
 
 class VcfScanCmd:
@@ -50,6 +51,7 @@ class VcfScanCmd:
         self.ref = False
         self.m = False
         self.vcfs = args.vcf
+        self.wsize = args.ma_wsize
 
     def set_ref(self):
         self.ref = True
@@ -67,6 +69,7 @@ class VcfScanCmd:
             cmd += ["-H", self.H, "-S", self.S]
         if self.m:
             cmd += ['-m']
+        cmd += ['-w', str(self.wsize)]
         cmd += self.vcfs
         return cmd
 
@@ -279,6 +282,7 @@ if __name__ == "__main__":
                         help="save run-length sampled SA to <output>.ssa (run-starts) and <output>.esa (run-ends)")
     parser.add_argument("--mmap", '-M', action='store_true',
                         help="tell pfbwt-f64 to use mmap (use this for very large files)")
+    parser.add_argument("--ma_wsize", default=10, type=int, help="window size to use for marker array")
     args = parser.parse_args()
 
     vcf_to_bwt(args)
