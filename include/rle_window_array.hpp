@@ -129,6 +129,9 @@ class rle_window_arr {
     // TODO: clear vals here?
     std::vector<uint64_t>& at_range(uint64_t s, uint64_t e, std::vector<uint64_t>& vals) const {
         uint64_t e_rs_rank = run_starts_rank(e);
+        if (e_rs_rank == 0) { // TODO: I think this means there are no markers in the range
+            return vals;
+        }
         uint64_t e_rs_pos = run_starts_select(e_rs_rank);
         if (e_rs_pos <= s) {
             uint64_t e_re_pos = run_ends_select(e_rs_rank);
@@ -198,7 +201,7 @@ class rle_window_arr {
                      : run_starts_.rank(i+1);
     }
 
-    // will fail on i == 0
+    // will fail on i == 0. Why though?
     inline uint64_t run_starts_select(uint64_t i) const {
         return i > run_starts_.rank(run_starts_.size())
                ? run_starts_.size()
