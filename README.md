@@ -40,7 +40,15 @@ To download:
 ```
 git clone --recursive https://github.com/alshai/pfbwt-f
 cd pfbwt-f
-make
+```
+
+To compile, use cmake:
+
+```
+mkdir build
+cd build
+cmake ..
+make pfbwt-f
 ```
 
 ## Usage
@@ -120,17 +128,18 @@ vcf_to_bwt.py is an easy way to generate a BWT directly from a VCF file and its 
 
 Requirements: GCC 7+, Python 3.X
 
-First, compile the necessary executables
+First, compile and install the necessary executables from your build directory:
 
 ```
-make vcf_to_bwt
+make 
+make install vcf_to_bwt.py
 ```
 
-Then run `vcf_to_bwt.py`
+Then run `vcf_to_bwt.py`. Assuming it's in `$PATH`:
 
 
 ```
-python vcf_to_bwt.py -o <output prefix> -S <samples file> <reference fasta> <vcf file>
+vcf_to_bwt.py -o <output prefix> -S <samples file> <reference fasta> <vcf file>
 ```
 
 - Intermediary files, parse-related files and the final BWT will be prepended with `<output prefix>`
