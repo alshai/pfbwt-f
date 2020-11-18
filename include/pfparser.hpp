@@ -194,8 +194,8 @@ struct PfParser {
     PfParser& operator+=(const PfParser& rhs) {
         size_t prev_n = get_n();
         if (!freqs_.size()) return operator=(rhs);
-        if (rhs.params_.w != params_.w) exit(1);
-        if (rhs.params_.p != params_.p) exit(1);
+        if (rhs.params_.w != params_.w) {fprintf(stderr, "invalid w\n"); exit(1);}
+        if (rhs.params_.p != params_.p) {fprintf(stderr, "invalid p\n"); exit(1);}
         // retrieve final phrase of this parse
         std::string phrase(parse_.back());
         // decrement count of last phrase in frequency table

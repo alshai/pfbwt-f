@@ -28,7 +28,7 @@ struct WangHash {
 
     uint64_t update(char c) {
         char x = seq_nt4_ntoa_table[(size_t) c];
-        if (x > 3) { fprintf(stderr, "error, invalid character %c\n", x); exit(1);}
+        if (x > 3) { fprintf(stderr, "error, invalid character %d/%c -> %d\n", c, c, x); exit(1);}
         kmer = ((kmer << 2) | x) & mask;
         hash = wang_hash(kmer);
         return hash;

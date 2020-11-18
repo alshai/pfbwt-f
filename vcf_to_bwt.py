@@ -217,7 +217,11 @@ def vcf_to_bwt(args):
         logger.info("merging parses")
         merge_pfp_cmd = [MERGE_PFP_EXE, '-s', '--parse-bwt', '--docs', '-o', args.o, '-t', str(args.threads)] + all_prefixes
         logger.info(" ".join(merge_pfp_cmd))
-        sp.run(merge_pfp_cmd, stdout=log_fp, stderr=sp.PIPE, check=True)
+        try:
+            sp.run(merge_pfp_cmd, stdout=log_fp, stderr=sp.PIPE, check=True)
+        except sp.CalledProcessError as e:
+            logger.info("MERGE_PFP ERROR: {} {}".format(e.returncode, e.stderr.decode()))
+            exit(1)
         logger.info("done merging parses")
         if args.clean:
             logger.info("cleaning files")

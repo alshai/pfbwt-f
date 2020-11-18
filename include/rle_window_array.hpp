@@ -138,8 +138,12 @@ class rle_window_arr {
             return e_re_pos >= s ? arr_at_(e_rs_rank-1, vals) : vals;
         }
         uint64_t s_rs_rank = run_starts_rank(s);
+        s_rs_rank = s_rs_rank ? s_rs_rank : 1;
+        // std::cerr << s << " -> " << s_rs_rank << "\n";
         uint64_t s_rs_pos = run_starts_select(s_rs_rank);
         uint64_t s_re_rank = run_ends_rank(s);
+        s_re_rank = s_re_rank ? s_re_rank : 1;
+        // std::cerr << s << " -> " << s_re_rank << "\n";
         uint64_t s_re_pos = run_ends_select(s_re_rank);
         uint64_t start_idx = s_rs_pos > s_re_pos ? s_rs_rank - 1 : s_rs_rank;
         assert(run_starts_select(start_idx+1) <= e); // this check should have been taken care of above

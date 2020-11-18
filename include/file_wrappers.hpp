@@ -136,8 +136,13 @@ class VecFileSource : private std::vector<T> {
         size_t size = get_file_size_(path.data());
         size_t nelems = size / sizeof(T);
         FILE* fp = fopen(path.data(), "rb");
+        if (fp == NULL) {
+            fprintf(stderr, "VecFileSource: error opening %s\n", path.data());
+            exit(1);
+        }
         this->resize(nelems);
         if (fread(&(this->data())[0], sizeof(T), this->size(), fp) != nelems) {
+            fprintf(stderr, "VecFileSource: error reading from %s\n", path.data());
             exit(1);
         }
         fclose(fp);
@@ -164,8 +169,13 @@ class VecFileSink : public std::vector<T> {
         size_t size = get_file_size_(path.data());
         size_t nelems = size / sizeof(T);
         FILE* fp = fopen(path.data(), "rb");
+        if (fp == NULL) {
+            fprintf(stderr, "VecFileSink: error opening %s\n", path.data());
+            exit(1);
+        }
         this->resize(nelems);
         if (fread(&(*this)[0], sizeof(T), this->size(), fp) != nelems) {
+            fprintf(stderr, "VecFileSink: error reading from %s\n", path.data());
             exit(1);
         }
         fclose(fp);

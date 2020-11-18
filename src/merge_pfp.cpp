@@ -80,7 +80,10 @@ struct MergeArgs {
         for (size_t i = 0; i < nthreads; ++i) {
             std::string fname = output + ".pfbwtf.th_" + std::to_string(i) + ".log";
             logs.push_back(fopen(fname.data(), "w"));
-            if (logs.back() == NULL) exit(1);
+            if (logs.back() == NULL) {
+                fprintf(stderr, "error adding a log file\n");
+                exit(1);
+            }
         }
     }
     std::vector<std::string> prefixes;
@@ -134,7 +137,9 @@ void merge_pfp(Args args) {
         for (size_t i = 0; i < args.nthreads; ++i)  {
             threads[i].join();
         }
+        fprintf(stderr, "merging parse\n");
         auto parser = parser_merge_from_vec(margs.params, margs.parsers);
+        fprintf(stderr, "saving parse\n");
         pfbwtf::save_parser(parser, args.output);
         if (args.parse_bwt) pfbwtf::save_parse_bwt(parser, args.output, args.sai);
     } else {
@@ -143,9 +148,12 @@ void merge_pfp(Args args) {
         if (fp == NULL) {fprintf(stderr, "error opening log\n"); exit(1);}
         pfbwtf::PfParser<> parser;
         for (auto prefix: args.prefixes) {
+            fprintf(stderr, "adding %s to parser\n", prefix.data());
             parser += pfbwtf::load_or_generate_parser_w_log(prefix, params, fp);
         }
+        fprintf(stderr, "finalizing merge\n");
         parser.finalize();
+        fprintf(stderr, "saving merge\n");
         pfbwtf::save_parser(parser, args.output);
         if (args.parse_bwt) pfbwtf::save_parse_bwt(parser, args.output, args.sai);
     }

@@ -87,8 +87,13 @@ std::vector<T> vec_from_file(std::string path) {
     size_t size = get_file_size(path.data());
     size_t nelems = size / sizeof(T);
     FILE* fp = fopen(path.data(), "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "vec_from_file: error opening %s\n", path.data());
+        exit(1);
+    }
     vec.resize(nelems);
     if (fread(&(vec.data())[0], sizeof(T), vec.size(), fp) != nelems) {
+        fprintf(stderr, "vec_from_file: error reading from %s\n", path.data());
         exit(1);
     }
     fclose(fp);
@@ -160,7 +165,10 @@ std::vector<const char*> load_parse(std::string parse_fname) {
     while ((k = getline(&line, &n, fp)) >= 0) {
         if (line[k-1] == '\n') line[k-1] = '\0';
         const char* l = strdup(line);
-        if (l == NULL) exit(1);
+        if (l == NULL) {
+            fprintf(stderr, "error duplicating string\n");
+            exit(1);
+        }
         parse.push_back(l);
     }
     return parse;
