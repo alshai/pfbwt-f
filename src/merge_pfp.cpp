@@ -97,7 +97,8 @@ struct MergeArgs {
 void parser_merge_worker(MergeArgs& args, size_t tidx, size_t start_i, size_t end_i) {
     for (size_t i = start_i; i <= end_i; ++i) {
         std::string prefix = args.prefixes[i];
-        args.parsers[tidx] += pfbwtf::load_or_generate_parser_w_log(prefix, args.params, args.logs[tidx]);
+        // args.parsers[tidx] += pfbwtf::load_or_generate_parser_w_log(prefix, args.params, args.logs[tidx]);
+        args.parsers[tidx] += pfbwtf::load_or_generate_parser_w_log(prefix, args.params, stderr);
     }
     args.parsers[tidx].finalize();
 }
@@ -124,7 +125,7 @@ void merge_pfp(Args args) {
         margs.nthreads = args.nthreads;
         margs.params = params;
         margs.output = args.output;
-        margs.init_logs();
+        // margs.init_logs();
         margs.parsers.resize(args.nthreads);
         std::vector<std::thread> threads;
         threads.reserve(args.nthreads);
@@ -135,11 +136,20 @@ void merge_pfp(Args args) {
             threads.push_back(std::thread(parser_merge_worker, std::ref(margs), i, start, end));
         }
         for (size_t i = 0; i < args.nthreads; ++i)  {
-            threads[i].join();
+            if (!threads[i].joinable()) {
+                fprintf(stderr, "merge_pfp: thread %lu no joinable!\n", i);
+                exit(1);
+            }
+            else {
+                try {
+                    threads[i].join();
+                } catch( const std::system_error& e) {
+                    fprintf(stderr, "merge_pfp: error thread %lu %d\n", i, e.code().value());
+                    exit(1);
+                }
+            }
         }
-        fprintf(stderr, "merging parse\n");
         auto parser = parser_merge_from_vec(margs.params, margs.parsers);
-        fprintf(stderr, "saving parse\n");
         pfbwtf::save_parser(parser, args.output);
         if (args.parse_bwt) pfbwtf::save_parse_bwt(parser, args.output, args.sai);
     } else {
@@ -148,12 +158,9 @@ void merge_pfp(Args args) {
         if (fp == NULL) {fprintf(stderr, "error opening log\n"); exit(1);}
         pfbwtf::PfParser<> parser;
         for (auto prefix: args.prefixes) {
-            fprintf(stderr, "adding %s to parser\n", prefix.data());
             parser += pfbwtf::load_or_generate_parser_w_log(prefix, params, fp);
         }
-        fprintf(stderr, "finalizing merge\n");
         parser.finalize();
-        fprintf(stderr, "saving merge\n");
         pfbwtf::save_parser(parser, args.output);
         if (args.parse_bwt) pfbwtf::save_parse_bwt(parser, args.output, args.sai);
     }

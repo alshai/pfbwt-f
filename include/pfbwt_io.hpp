@@ -179,18 +179,31 @@ std::pair<std::vector<std::string>, std::vector<U>> load_doc_info(std::string fn
     std::vector<std::string> names;
     std::vector<U> starts;
     FILE* fp = fopen(fname.data(), "r");
-    if (fp == NULL) die("error opening doc file");
+    if (fp == NULL) {
+        fprintf(stderr, "error opening doc file %s", fname.data());
+        exit(1);
+    }
     char* line = NULL;
-    char* tok, *end;
-    size_t n;
+    char* tok = NULL, *end = NULL;
+    size_t n = 0;
     int l;
+    const char* delim = " ";
+    char* saveptr;
     while ((l = getline(&line, &n, fp) >= 0)) {
-        tok = strtok(line, " ");
+        tok = strtok_r(line, delim, &saveptr);
+        if (tok == NULL) {
+            fprintf(stderr, "error parsing name in doc file line\n");
+            exit(1);
+        }
         names.push_back(tok);
-        if (tok == NULL) die("error parsing doc file\n");
-        tok = strtok(NULL, " ");
+        tok = strtok_r(NULL, delim, &saveptr);
+        if (tok == NULL) {
+            fprintf(stderr, "error parsing size in doc file line: %s\n", line);
+            exit(1);
+        }
         starts.push_back(std::strtoul(tok, &end, 10));
     }
+    free(line);
     return std::make_pair(names, starts);
 }
 
