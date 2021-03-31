@@ -8,6 +8,10 @@ endif()
 
 project (pfbwt-f)
 
+find_library(HTS_LIB hts)
+
+# Google Test support
+set(CMAKE_CXX_STANDARD 17)
 include(FetchContent)
 FetchContent_Declare(
   googletest
@@ -17,14 +21,13 @@ FetchContent_MakeAvailable(googletest)
 include(CTest)
 enable_testing()
 
-
 include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/sdsl-lite/include)
 
 message("Building in ${CMAKE_BUILD_TYPE} mode")
 
-set(CMAKE_CXX_FLAGS "-DM64  -Wall -Wextra -std=c++11")
+set(CMAKE_CXX_FLAGS "-DM64  -Wall -Wextra")
 set(CMAKE_C_FLAGS "-DM64 -Wall -Wextra -std=c99")
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb -g -march=native")
@@ -43,9 +46,11 @@ add_executable(mps_to_ma src/mps_to_ma.cpp src/utils.c)
 
 # tests
 add_executable(marker_test tests/marker_test.cpp)
+target_link_libraries(marker_test gtest_main)
 
 include(GoogleTest)
-gtest_discover_tests(marker_test gtest_main)
+gtest_discover_tests(marker_test)
+include(CPack)
 
 # file(COPY ${PROJECT_SOURCE_DIR}/vcf_to_bwt.py DESTINATION bin FILE_PERMISSIONS OWNER_READ OWNER_EXECUTE)
 install(FILES ${PROJECT_SOURCE_DIR}/vcf_to_bwt.py DESTINATION bin PERMISSIONS OWNER_READ OWNER_EXECUTE)
