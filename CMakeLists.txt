@@ -8,6 +8,16 @@ endif()
 
 project (pfbwt-f)
 
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/6c5c4554ac218a8e19168edc121b1ad232015185.zip
+)
+FetchContent_MakeAvailable(googletest)
+include(CTest)
+enable_testing()
+
+
 include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/sdsl-lite/include)
@@ -30,6 +40,12 @@ TARGET_LINK_LIBRARIES(vcf_scan hts)
 add_executable(merge_mps src/merge_mps.cpp)
 add_executable(dump_markers src/dump_markers.cpp)
 add_executable(mps_to_ma src/mps_to_ma.cpp src/utils.c)
+
+# tests
+add_executable(marker_test tests/marker_test.cpp)
+
+include(GoogleTest)
+gtest_discover_tests(marker_test gtest_main)
 
 # file(COPY ${PROJECT_SOURCE_DIR}/vcf_to_bwt.py DESTINATION bin FILE_PERMISSIONS OWNER_READ OWNER_EXECUTE)
 install(FILES ${PROJECT_SOURCE_DIR}/vcf_to_bwt.py DESTINATION bin PERMISSIONS OWNER_READ OWNER_EXECUTE)
