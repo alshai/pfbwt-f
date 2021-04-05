@@ -6,6 +6,7 @@ import subprocess as sp
 import multiprocessing as mp
 import os
 import logging
+import pysam
 
 PARSE_EXTS  = ['bwlast', 'bwsai', 'dict', 'docs', 'fa', 'ilist', 'log', 'mps', 'n', 'occ', 'parse']
 PFBWTF_EXE = './pfbwt-f64' if os.path.exists('./pfbwt-f64') else 'pfbwt-f64'
@@ -85,9 +86,11 @@ def vcf_to_fa(args, ref=False):
     if args.m:
         cmd_builder.set_m()
     log = open(full_prefix + ".log", "w")
+    cmd = cmd_builder.get_cmd()
+    log.write("{}\n".format(' '.join(cmd)))
     fa_fname = full_prefix + ".fa"
     with open(fa_fname, "w") as fa_fp:
-        vcf_scan_proc = sp.run(cmd_builder.get_cmd(), stdout=fa_fp, stderr=log)
+        vcf_scan_proc = sp.run(cmd, stdout=fa_fp, stderr=log, check=True)
     log.close()
 
 
@@ -103,10 +106,11 @@ def vcf_to_parse(args, ref=False):
         cmd_builder.set_m()
     vcf_scan_cmd = cmd_builder.get_cmd()
     log = open(full_prefix + ".log", "w")
+    log.write("{}\n".format(' '.join(vcf_scan_cmd)))
     if args.save_fasta:
         fa_fname = full_prefix + ".fa"
         with open(fa_fname, "w") as fa_fp:
-            vcf_scan_proc = sp.run(vcf_scan_cmd, stdout=fa_fp, stderr=log)
+            vcf_scan_proc = sp.run(vcf_scan_cmd, stdout=fa_fp, stderr=log, check=True)
         pfbwt_cmd = [PFBWTF_EXE, '--parse-only', '--print-docs', '-s', '-o', full_prefix, fa_fname]
         if args.mmap:
             pfbwt_cmd = pfbwt_cmd[:1] + ['-m'] + pfbwt_cmd[1:]
@@ -166,9 +170,10 @@ class PfbwtCmd:
 
 def vcf_to_bwt(args):
     if not args.samples:
-        sys.stderr.write("no support yet for specification of zero samples\n")
-        exit(1)
-    samples = open(args.samples).read().strip().split('\n')
+        sys.stderr.write("no sample file specified, defaulting to samples first VCF {}\n".format(args.vcf[0]))
+        samples = list(pysam.VariantFile(args.vcf[0], "r").header.samples)
+    else:
+        samples = open(args.samples).read().strip().split('\n')
     thread_args = [VcfToXArgs(i, s, h, args) for i, s in enumerate(samples) for h in ['0', '1']]
     all_prefixes = [args.o + ".ref"] + [a.full_prefix for a in thread_args]
     # set up logger
@@ -199,7 +204,7 @@ def vcf_to_bwt(args):
         cat_cmd = ['cat'] + [args.o + ".ref.fa"] + [a.full_prefix + ".fa" for a in thread_args]
         cat_proc = sp.Popen(cat_cmd, stdout=sp.PIPE, stderr=log_fp)
         logger.info(" ".join(cat_cmd) + " | " + " ".join(parse_cmd))
-        parse_proc = sp.run(parse_cmd, stdin=cat_proc.stdout, stderr=sp.STDOUT, stdout=log_fp)
+        parse_proc = sp.run(parse_cmd, check=True, stdin=cat_proc.stdout, stderr=sp.STDOUT, stdout=log_fp)
         cat_proc.wait()
         logger.info("generated parse")
     else:
