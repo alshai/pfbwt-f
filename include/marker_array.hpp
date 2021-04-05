@@ -21,9 +21,11 @@ bool vec_eq(std::vector<T> a, std::vector<T> b) {
 struct Marker {
     Marker() {}
     Marker(size_t p, size_t r, size_t a) : textpos(p), refpos(r), allele(a) {}
+    Marker(size_t p, size_t r, size_t a, size_t s) : textpos(p), refpos(r), allele(a), seqid(s) {}
     size_t textpos;
     size_t refpos;
     size_t allele;
+    size_t seqid;
 };
 
 class MarkerWindow : public std::deque<Marker> {
@@ -39,6 +41,10 @@ class MarkerWindow : public std::deque<Marker> {
 
     void push_back(size_t p, size_t r, size_t a) {
         std::deque<Marker>::push_back(Marker(p,r,a));
+    }
+
+    void push_back(size_t p, size_t r, size_t a, size_t s) {
+        std::deque<Marker>::push_back(Marker(p,r,a, s));
     }
 
     size_t get_pos() const { return pos_; }
@@ -68,8 +74,8 @@ class MarkerPositionsWriter {
 
     ~MarkerPositionsWriter() { }
 
-    void update(size_t rpos, int32_t gt, size_t hpos) {
-        if (gt > -1) win_.push_back(hpos, rpos, gt);
+    void update(size_t rpos, int32_t gt, size_t hpos, size_t seqid) {
+        if (gt > -1) win_.push_back(hpos, rpos, gt, seqid);
         size_t pos = win_.get_pos();
         // skip pos ahead if needed
         if (pos < win_.front().textpos - w_ + 1) {
@@ -84,7 +90,7 @@ class MarkerPositionsWriter {
                 typename MarkerWindow::iterator it;
                 for (it = win_.begin(); it != win_.end(); ++it) {
                     if (pos + w_ > it->textpos) { // always pos <= m.textpos
-                        marker_vals.push_back(create_marker_t(it->refpos, it->allele)); // pack pos and allele
+                        marker_vals.push_back(create_marker_t(it->refpos, it->allele, it->seqid)); // pack pos and allele
                         ++nmarkers;
                     } else break;
                 }
@@ -111,7 +117,7 @@ class MarkerPositionsWriter {
                 for (auto it = win_.begin(); it != win_.end(); ++it) {
                     if (pos <= it->textpos && it->textpos < pos + win_.get_w()) {
                         ++nmarkers;
-                        marker_vals.push_back(create_marker_t(it->refpos, it->allele)); // pack pos and allele
+                        marker_vals.push_back(create_marker_t(it->refpos, it->allele, it->seqid)); // pack pos and allele
                     } else break;
                 }
                 if (!vec_eq(pmarker_vals, marker_vals)) {

@@ -152,7 +152,8 @@ void scan_vcf_sample(Args args, std::string sample) {
     int ppos_after = 0;
     std::string pseq("");
     // auto out_fn = [&](bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int ref_len) {
-    auto out_fn = [&](bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int32_t ref_len, const char* ref_name) {
+    auto out_fn = [&](bcf_hdr_t* hdr, bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int32_t ref_len, int rid) {
+        const char* ref_name = bcf_hdr_id2name(hdr, rid);
         if (strcmp(ref_name, pseq.data())) {
             std::string to_write(ref_name);
             if (!args.ref_only) {
@@ -166,13 +167,13 @@ void scan_vcf_sample(Args args, std::string sample) {
             if (rec->pos != ppos) {
                 int pos = args.ref_only ? rec->pos : posv[i];
                 int gt =  args.ref_only ? 0        : gtv[i];
-                if (args.mai) mi_writer.update(rec->pos, gt, pos);
+                if (args.mai) mi_writer.update(rec->pos, gt, pos, rid);
                 update_sequence(ref_seq, ref_len, rec, ppos_after, gt, fa_fp, log);
                 ppos = rec->pos;
                 ppos_after = ppos + strlen(rec->d.allele[0]);
-            } else fprintf(stderr, "warning: overlapping variants at %d. skipping... \n", rec->pos);
+            } else fprintf(stderr, "warning: overlapping variants at %lu. skipping... \n", rec->pos);
         } else {
-            if (args.mai) mi_writer.update(ref_len, -1, ref_len);
+            if (args.mai) mi_writer.update(ref_len, -1, ref_len, rid);
             update_sequence(ref_seq, ref_len, NULL, ppos_after, -1, fa_fp, log);
         }
     };

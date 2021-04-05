@@ -183,11 +183,11 @@ class VCFScanner {
                 int alt_len = strlen(rec->d.allele[gts[i]]);
                 deltav[i] = alt_len - ref_len; // negative if deletion
             }
-            out_fn(rec, gts, posv, ref_seq, ref_length, bcf_hdr_id2name(hdr, id));
+            out_fn(hdr, rec, gts, posv, ref_seq, ref_length, id);
             ppos = rec->pos;
         }
         BCFGenotype gts;
-        out_fn(NULL, gts, posv, ref_seq, ref_length, bcf_hdr_id2name(hdr, id));
+        out_fn(hdr, NULL, gts, posv, ref_seq, ref_length, id);
         free(gt_buf);
         bcf_destroy(rec);
         free(ref_seq);
