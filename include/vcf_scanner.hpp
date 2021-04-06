@@ -55,7 +55,6 @@ struct VCFScannerArgs {
     std::string samples_fname;
     std::string sample;
     std::string ref_fasta;
-    int wsize = 1;
     int verb = 0;
 };
 

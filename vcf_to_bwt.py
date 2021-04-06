@@ -38,6 +38,7 @@ class VcfToXArgs:
         self.ref_only = False
         self.m = other.ma
         self.mmap = other.mmap
+        self.wsize = other.wsize
         self.ma_wsize = other.ma_wsize
 
 
@@ -52,7 +53,8 @@ class VcfScanCmd:
         self.ref = False
         self.m = False
         self.vcfs = args.vcf
-        self.wsize = args.ma_wsize
+        self.wsize = args.wsize
+        self.ma_wsize = args.ma_wsize
 
     def set_ref(self):
         self.ref = True
@@ -71,6 +73,7 @@ class VcfScanCmd:
         if self.m:
             cmd += ['-m']
         cmd += ['-w', str(self.wsize)]
+        cmd += ['-x', str(self.ma_wsize)]
         cmd += self.vcfs
         return cmd
 
@@ -151,6 +154,8 @@ def merge_mps(args, thread_args, logger, log_fp):
 class PfbwtCmd:
 
     def __init__(self, args):
+        self.wsize = str(args.wsize)
+        self.mod = str(args.mod)
         self.sa = args.sa
         self.rssa = args.rssa
         self.ma = args.ma
@@ -158,7 +163,7 @@ class PfbwtCmd:
         self.o = args.o
 
     def get_cmd(self):
-        cmd = [PFBWTF_EXE, '--pfbwt-only', '--print-docs', '-o', args.o]
+        cmd = [PFBWTF_EXE, '--pfbwt-only', '--print-docs', '-o', self.o, '-w', self.wsize, '-m', self.mod]
         if self.sa or self.ma:
             cmd += ['--stdout', 'sa', '-s']
         if self.mmap:
@@ -292,6 +297,8 @@ if __name__ == "__main__":
     parser.add_argument("--mmap", '-M', action='store_true',
                         help="tell pfbwt-f64 to use mmap (use this for very large files)")
     parser.add_argument("--ma_wsize", default=10, type=int, help="window size to use for marker array")
+    parser.add_argument("--wsize", default=10, type=int, help="window size for prefix-free parsing")
+    parser.add_argument("--mod", default=10, type=int, help="mod for prefix-free parsing")
     args = parser.parse_args()
 
     vcf_to_bwt(args)

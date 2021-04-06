@@ -7,6 +7,7 @@
 
 struct Args {
     int w = 10;
+    int ma_w = 1;
     std::string fa_fname;
     std::vector<std::string> vcf_fnames = {"/home/taher/r-index2/pfbwt-f/data/chr21.snps.vcf.gz"};
     std::vector<std::string> contigs = {"21"};
@@ -26,7 +27,6 @@ VCFScannerArgs ArgsToVCFScannerArgs(Args args) {
     v.vcf_fnames = args.vcf_fnames;
     v.contigs = args.contigs;
     v.verb = args.verb;
-    v.wsize = args.w;
     v.ref_fasta = args.ref_fasta;
     return v;
 }
@@ -40,6 +40,7 @@ Args parse_args(int argc, char** argv) {
     char* pch;
     static struct option lopts[] = {
         {"window-size", required_argument, NULL, 'w'},
+        {"marker-window-size", required_argument, NULL, 'x'},
         {"output", required_argument, NULL, 'o'},
         {"threads", required_argument, NULL, 't'},
         {"contigs", required_argument, NULL, 'c'},
@@ -52,7 +53,7 @@ Args parse_args(int argc, char** argv) {
         {"marker-index", no_argument, NULL, 'm'}
     };
 
-    while ((c = getopt_long( argc, argv, "rf:w:o:t:c:S:vH:m", lopts, NULL) ) != -1) {
+    while ((c = getopt_long( argc, argv, "rf:w:x:o:t:c:S:vH:m", lopts, NULL) ) != -1) {
         switch(c) {
             case 'f':
                 args.ref_fasta = optarg; break;
@@ -60,6 +61,8 @@ Args parse_args(int argc, char** argv) {
             //     args.samples = {optarg}; break;
             case 'w':
                 args.w = atoi(optarg); break;
+            case 'x':
+                args.ma_w = atoi(optarg); break;
             case 'o':
                 args.out = optarg; break;
             case 't':
@@ -145,7 +148,7 @@ void scan_vcf_sample(Args args, std::string sample) {
     }
     // MarkerPositionsWriter mi_writer(args.mai ? MarkerPositionsWriter(args.w, ma_fp, args.verb ? NULL : log) : MarkerPositionsWriter());
     MarkerPositionsWriter mi_writer(([&]() {
-            if (args.mai) return MarkerPositionsWriter(args.w, ma_fp, args.verb ? NULL : log);
+            if (args.mai) return MarkerPositionsWriter(args.ma_w, ma_fp, args.verb ? NULL : log);
             else return MarkerPositionsWriter();
         })()
     );
