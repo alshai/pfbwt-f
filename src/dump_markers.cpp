@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
                 fprintf(stdout, "%lu\n", x);
                 state = 0;
             } else {
-                fprintf(stdout, "%lu %u\n", get_pos(x), get_allele(x));
+                fprintf(stdout, "%lu %lu\n", get_pos(x), get_allele(x));
             }
         }
     }

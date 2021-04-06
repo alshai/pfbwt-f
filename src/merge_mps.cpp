@@ -52,7 +52,7 @@ void merge_indexes_mult(Args args) {
     size_t total_length = 0;
     for (auto l: lengths) total_length += l + args.wsize;
     FILE* ofp = fopen(args.output.data(), "wb");
-    uint64_t x, mp, ms, pms=-1, ma;
+    uint64_t x;
     uint64_t delim = -1;
     int state = 0;
     size_t seq_bias = 0;
@@ -71,9 +71,7 @@ void merge_indexes_mult(Args args) {
                 idx[state] = x;
                 ++state;
             } else if (x != delim) { // values are rest
-                ms = get_seq(x);
                 markers.push_back(x);
-                pms = ms;
             } else { // x == delim == separator between runs
                 // deal with whole run here
                 // fprintf(stderr, "%d %lu %lu %lu\n", nseq, ms, seq_bias, chrom_bias);
@@ -88,7 +86,6 @@ void merge_indexes_mult(Args args) {
         }
         seq_bias += total_length;
         nseq += 1;
-        pms = -1;
         fclose(fp);
     }
     fclose(ofp);
