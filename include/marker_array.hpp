@@ -74,7 +74,13 @@ class MarkerPositionsWriter {
 
     ~MarkerPositionsWriter() { }
 
-    void update(size_t rpos, int32_t gt, size_t hpos, size_t seqid) {
+    void update(size_t rpos, int32_t gt, size_t hpos, int seqid) {
+        if (pseqid != seqid) {
+            pmarker_vals.clear();
+            marker_vals.clear();
+            marker_locs.clear();
+            win_.clear();
+        }
         if (gt > -1) win_.push_back(hpos, rpos, gt, seqid);
         size_t pos = win_.get_pos();
         // skip pos ahead if needed
@@ -130,7 +136,7 @@ class MarkerPositionsWriter {
             }
             process_run();
         }
-        ppos = hpos;
+        pseqid = seqid;
     }
 
     private:
@@ -153,7 +159,7 @@ class MarkerPositionsWriter {
     FILE* ofp_, *log_;
     int w_;
 
-    int32_t ppos;
+    int pseqid = 0;
     uint64_t delim_ = -1;
     size_t nwindows_ = 0;
     bool inc_ = false;

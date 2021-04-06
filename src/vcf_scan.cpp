@@ -128,7 +128,6 @@ void scan_vcf_sample(Args args, std::string sample) {
     VCFScannerArgs vargs(ArgsToVCFScannerArgs(args));
     vargs.sample = sample;
     FILE *log = NULL, *ma_fp = NULL, *fa_fp = NULL;
-    int ppos = 0;
     int i = args.haplotype;
     std::string fa_fname = args.out + "." + sample + "." + std::to_string(i) + ".fa";
     std::string fa_header = args.out + "." + sample + "." + std::to_string(i);
@@ -152,10 +151,18 @@ void scan_vcf_sample(Args args, std::string sample) {
             else return MarkerPositionsWriter();
         })()
     );
+    int ppos = 0;
     int ppos_after = 0;
+    int prid = 0;
+    size_t len_bias = 0;
     std::string pseq("");
     // auto out_fn = [&](bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int ref_len) {
     auto out_fn = [&](bcf_hdr_t* hdr, bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int32_t ref_len, int rid) {
+        if (prid != rid) {
+           ppos = 0;
+           ppos_after = 0; 
+           len_bias += ref_len + args.w;
+        }
         const char* ref_name = bcf_hdr_id2name(hdr, rid);
         if (strcmp(ref_name, pseq.data())) {
             std::string to_write(ref_name);
@@ -170,7 +177,7 @@ void scan_vcf_sample(Args args, std::string sample) {
             if (rec->pos != ppos) {
                 int pos = args.ref_only ? rec->pos : posv[i];
                 int gt =  args.ref_only ? 0        : gtv[i];
-                if (args.mai) mi_writer.update(rec->pos, gt, pos, rid);
+                if (args.mai) mi_writer.update(rec->pos, gt, len_bias+pos, rid);
                 update_sequence(ref_seq, ref_len, rec, ppos_after, gt, fa_fp, log);
                 ppos = rec->pos;
                 ppos_after = ppos + strlen(rec->d.allele[0]);
@@ -179,6 +186,7 @@ void scan_vcf_sample(Args args, std::string sample) {
             if (args.mai) mi_writer.update(ref_len, -1, ref_len, rid);
             update_sequence(ref_seq, ref_len, NULL, ppos_after, -1, fa_fp, log);
         }
+        prid = rid;
     };
     VCFScanner v(vargs);
     v.vcf_for_each(out_fn);

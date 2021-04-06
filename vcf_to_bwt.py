@@ -145,7 +145,7 @@ class vcf_to_parse_builder:
 def merge_mps(args, thread_args, logger, log_fp):
     logger.info("merging marker positions")
     length = int(open(args.o + ".ref.n").read().strip())
-    cmd = [MERGE_MPS_EXE, str(length), args.o + ".mps"] + [args.o + ".ref.mps"] + [a.full_prefix + ".mps" for a in thread_args]
+    cmd = [MERGE_MPS_EXE, args.fasta+".fai", str(args.wsize), args.o + ".mps"] + [args.o + ".ref.mps"] + [a.full_prefix + ".mps" for a in thread_args]
     logger.info(" ".join(cmd))
     sp.run(cmd, check=True, stdout=log_fp, stderr=sp.PIPE)
     logger.info("merged marker positions")
@@ -174,6 +174,7 @@ class PfbwtCmd:
 
 
 def vcf_to_bwt(args):
+    sp.run(["samtools", "faidx", args.fasta], check=True)
     if not args.samples:
         sys.stderr.write("no sample file specified, defaulting to samples first VCF {}\n".format(args.vcf[0]))
         samples = list(pysam.VariantFile(args.vcf[0], "r").header.samples)
