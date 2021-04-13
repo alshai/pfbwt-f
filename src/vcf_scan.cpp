@@ -9,10 +9,10 @@ struct Args {
     int w = 10;
     int ma_w = 1;
     std::string fa_fname;
-    std::vector<std::string> vcf_fnames = {"/home/taher/r-index2/pfbwt-f/data/chr21.snps.vcf.gz"};
-    std::vector<std::string> contigs = {"21"};
-    std::vector<std::string> samples = {"HG00096"};
-    std::string ref_fasta = "/home/taher/pfbwt-f/data/chr21.fa";
+    std::vector<std::string> vcf_fnames;
+    std::vector<std::string> contigs;
+    std::vector<std::string> samples;
+    std::string ref_fasta;
     std::string out = "out";
     int nthreads = 1;
     int verb = 0;
@@ -160,7 +160,7 @@ void scan_vcf_sample(Args args, std::string sample) {
     auto out_fn = [&](bcf_hdr_t* hdr, bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int32_t ref_len, int rid) {
         if (prid != rid) {
            ppos = 0;
-           ppos_after = 0; 
+           ppos_after = 0;
            len_bias += ref_len + args.w;
         }
         const char* ref_name = bcf_hdr_id2name(hdr, rid);

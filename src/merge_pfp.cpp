@@ -118,7 +118,8 @@ void merge_pfp(Args args) {
     params.w = args.w;
     params.p = args.p;
     params.get_sai = args.sai;
-    if (args.nthreads > 1) {
+    fprintf(stderr, "%lu %lu - %lu\n", args.nthreads, args.prefixes.size(), args.prefixes.size()/args.nthreads);
+    if (args.prefixes.size() / args.nthreads > 2) {
         // initialize threads and thread arguments
         MergeArgs margs;
         margs.prefixes = args.prefixes;
@@ -137,7 +138,7 @@ void merge_pfp(Args args) {
         }
         for (size_t i = 0; i < args.nthreads; ++i)  {
             if (!threads[i].joinable()) {
-                fprintf(stderr, "merge_pfp: thread %lu no joinable!\n", i);
+                fprintf(stderr, "merge_pfp: thread %lu not joinable!\n", i);
                 exit(1);
             }
             else {
@@ -155,6 +156,8 @@ void merge_pfp(Args args) {
     } else {
         std::string log_fname = args.output + ".pfbwt.log";
         FILE* fp = fopen(log_fname.data(), "w");
+        fprintf(fp, "not using threads (%lu files, %lu threads specified)\n", args.prefixes.size(), args.nthreads);
+        fprintf(stderr, "not using threads (%lu files, %lu threads specified)\n", args.prefixes.size(), args.nthreads);
         if (fp == NULL) {fprintf(stderr, "error opening log\n"); exit(1);}
         pfbwtf::PfParser<> parser;
         for (auto prefix: args.prefixes) {

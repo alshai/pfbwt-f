@@ -270,7 +270,7 @@ int file_exists(std::string fname) {
 PfParser<> load_or_generate_parser_w_log(std::string prefix, PfParserParams params, FILE* fp = stderr) {
     PfParser<> parser;
     if (parse_files_exist(prefix)) {
-        fprintf(fp, "loading %s from file\n", prefix.data());
+        fprintf(fp, "loading %s, %s, and maybe %s from file\n", (prefix + ".dict").data(), (prefix + ".parse").data(),  (prefix + ".docs").data());
         parser += load_parser(prefix, params);
     } else {
         fprintf(fp, "generating parse for %s\n", prefix.data());

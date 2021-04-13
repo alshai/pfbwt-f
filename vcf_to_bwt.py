@@ -114,13 +114,13 @@ def vcf_to_parse(args, ref=False):
         fa_fname = full_prefix + ".fa"
         with open(fa_fname, "w") as fa_fp:
             vcf_scan_proc = sp.run(vcf_scan_cmd, stdout=fa_fp, stderr=log, check=True)
-        pfbwt_cmd = [PFBWTF_EXE, '--parse-only', '--print-docs', '-s', '-o', full_prefix, fa_fname]
+        pfbwt_cmd = [PFBWTF_EXE, '--non-acgt-to-a', '--parse-only', '--print-docs', '-s', '-o', full_prefix, fa_fname]
         if args.mmap:
             pfbwt_cmd = pfbwt_cmd[:1] + ['-m'] + pfbwt_cmd[1:]
         pfbwt_proc = sp.run(pfbwt_cmd, check=True, stdout=log, stderr=sp.PIPE)
     else:
         vcf_scan_proc = sp.Popen(vcf_scan_cmd, stdout=sp.PIPE, stderr=log)
-        pfbwt_cmd = [PFBWTF_EXE, '--parse-only', '--print-docs', '-s', '-o', full_prefix]
+        pfbwt_cmd = [PFBWTF_EXE, '--non-acgt-to-a', '--parse-only', '--print-docs', '-s', '-o', full_prefix]
         if args.mmap:
             pfbwt_cmd = pfbwt_cmd[:1] + ['-m'] + pfbwt_cmd[1:]
         pfbwt_proc = sp.run(pfbwt_cmd, stdin=vcf_scan_proc.stdout, stdout=log, stderr=sp.PIPE, check=True)
@@ -226,7 +226,7 @@ def vcf_to_bwt(args):
         if args.ma:
             merge_mps(args, thread_args, logger, log_fp)
         logger.info("merging parses")
-        merge_pfp_cmd = [MERGE_PFP_EXE, '-s', '--parse-bwt', '--docs', '-o', args.o, '-t', str(args.threads)] + all_prefixes
+        merge_pfp_cmd = [MERGE_PFP_EXE, '-w', str(args.wsize), '-s', '--parse-bwt', '--docs', '-o', args.o, '-t', str(args.threads)] + all_prefixes
         logger.info(" ".join(merge_pfp_cmd))
         try:
             sp.run(merge_pfp_cmd, stdout=log_fp, stderr=sp.PIPE, check=True)
