@@ -28,167 +28,88 @@ struct Marker {
     size_t seqid;
 };
 
-class MarkerWindow : public std::deque<Marker> {
-
-    using MDeq = std::deque<Marker>;
-
-    public:
-
-    using iterator = MDeq::iterator;
-
-    MarkerWindow() {}
-    MarkerWindow(size_t w) : w_(w) {}
-
-    void push_back(size_t p, size_t r, size_t a) {
-        std::deque<Marker>::push_back(Marker(p,r,a));
-    }
-
-    void push_back(size_t p, size_t r, size_t a, size_t s) {
-        std::deque<Marker>::push_back(Marker(p,r,a, s));
-    }
-
-    size_t get_pos() const { return pos_; }
-    void set_pos(size_t p) { pos_ = p; }
-    int get_w() const { return w_; }
-    void set_w(int w) { w_ = w; }
-
-    private:
-
-    size_t pos_ = 0;
-    int w_ = 10;
-};
-
-
 class MarkerPositionsWriter {
 
     public:
 
     MarkerPositionsWriter() {}
 
-    MarkerPositionsWriter(int w, FILE* ofp, FILE* log=NULL)
-        : win_(w)
-        , w_(w) {
-            ofp_ = ofp;
-            log_ = log;
-        }
+    MarkerPositionsWriter(size_t w, FILE* ofp, FILE* log=NULL) 
+    : wsize_(w)
+    , fp_(ofp)
+    , log_(log) {}
 
-    ~MarkerPositionsWriter() { }
+    ~MarkerPositionsWriter() {}
 
-    void update(size_t rpos, int32_t gt, size_t hpos, int seqid) {
-        if (pseqid != seqid) {
-            pmarker_vals.clear();
-            marker_vals.clear();
-            marker_locs.clear();
-            win_.clear();
+    void update(size_t rpos, int gt, int seqid) {
+        if (seqid == -1) {
+            fprintf(stderr, "%s ERROR: seqid==-1 not allowed!\n", __FUNCTION__);
         }
-        if (gt > -1) win_.push_back(hpos, rpos, gt, seqid);
-        size_t pos = win_.get_pos();
-        // skip pos ahead if needed
-        if (pos < win_.front().textpos - w_ + 1) {
-            process_run(); // automatically instigates end of run
-            pos = win_.front().textpos - w_ + 1;
-            win_.set_pos(pos);
+        if (seqid_ != -1 && seqid_ != seqid) {
+            fprintf(stderr, "%s sequence changed without calling finish_sequence()!\n", __FUNCTION__);
+            exit(1);
         }
-        if (gt > -1) {
-            for (; pos + w_ > win_.front().textpos; ++pos) {
-                marker_vals.clear();
-                size_t nmarkers = 0;
-                typename MarkerWindow::iterator it;
-                for (it = win_.begin(); it != win_.end(); ++it) {
-                    if (pos + w_ > it->textpos) { // always pos <= m.textpos
-                        marker_vals.push_back(create_marker_t(it->refpos, it->allele, it->seqid)); // pack pos and allele
-                        ++nmarkers;
-                    } else break;
-                }
-                if (it == win_.end()) { // ignore. more markers to come, probably, with next Marker
-                    nmarkers = 0;
-                    win_.set_pos(pos);
-                    break; // break here, then?
-                }
-                if (nmarkers) ++nwindows_;
-                if (!vec_eq(pmarker_vals, marker_vals)) {
-                    process_run();
-                }
-                marker_locs.push_back(pos);
-                pmarker_vals = marker_vals;
-                if (pos+1 > win_.front().textpos) {
-                    win_.pop_front(); // prune window if necessary
-                }
-            }
-        } else { // last rec in file
-            for (; pos <= win_.front().textpos; ++pos) {
-                marker_vals.clear();
-                int nmarkers = 0;
-                win_.set_pos(pos);
-                for (auto it = win_.begin(); it != win_.end(); ++it) {
-                    if (pos <= it->textpos && it->textpos < pos + win_.get_w()) {
-                        ++nmarkers;
-                        marker_vals.push_back(create_marker_t(it->refpos, it->allele, it->seqid)); // pack pos and allele
-                    } else break;
-                }
-                if (!vec_eq(pmarker_vals, marker_vals)) {
-                    process_run();
-                    pmarker_vals = marker_vals;
-                }
-                marker_locs.push_back(pos);
-                // process_run();
-                if (nmarkers) ++nwindows_;
-            }
+        // check if new marker is outside window
+        while (marker_queue_.size() && marker_queue_.front().refpos + wsize_ <= rpos) {
             process_run();
+            marker_queue_.pop_front();
         }
-        pseqid = seqid;
+        marker_queue_.push_back(Marker(tlen_ + rpos, rpos, gt, seqid));
+        assert(marker_queue_.back().refpos < marker_queue_.front().refpos + wsize_);
+        seqid_ = seqid;
+    }
+
+    void finish_sequence(size_t length) {
+        process_run();
+        marker_queue_.clear();
+        seqid_ = -1;
+        tlen_ += length;
     }
 
     private:
 
     void process_run() {
-        if (marker_locs.size() && pmarker_vals.size()) {
-            uint64_t front = marker_locs.front();
-            uint64_t back = marker_locs.back();
-            fwrite(&front, sizeof(uint64_t), 1, ofp_);
-            fwrite(&back, sizeof(uint64_t), 1, ofp_);
-            for (auto v: pmarker_vals) {
-                fwrite(&v, sizeof(MarkerT), 1, ofp_);
-            }
-            fwrite(&delim_, sizeof(uint64_t), 1, ofp_);
+        /* invariant: marker_queue.end() < marker_queue_.begin() + wsize_ */
+        uint64_t end;
+        assert(tpos_ <= marker_queue_.front().textpos);  // I don't think this should ever happen
+        if (tpos_ + wsize_ <= marker_queue_.front().textpos) { // skip ahead if necessary
+            tpos_ = marker_queue_.front().textpos - wsize_ + 1;
         }
-        marker_locs.clear();
+        for (auto it = marker_queue_.begin(); it != marker_queue_.end(); ++it) {
+            if (!(tpos_ + wsize_ > it->textpos)) {
+                end = it->textpos - wsize_;
+                assert (end >= tpos_);
+                write_markers(tpos_, end, it); // write up to this iter
+                tpos_ = end + 1;
+            }
+        }
+        end = marker_queue_.front().textpos;
+        write_markers(tpos_, end, marker_queue_.end());
+        tpos_ = end + 1;
     }
 
-    MarkerWindow win_;
-    FILE* ofp_, *log_;
-    int w_;
+    void write_markers(uint64_t start, uint64_t end, std::deque<Marker>::iterator it_end) {
+        fwrite(&start, sizeof(uint64_t), 1, fp_);
+        fwrite(&end, sizeof(uint64_t), 1, fp_);
+        for (auto it=marker_queue_.begin(); it != it_end; ++it) {
+            MarkerT x = create_marker_t(it->refpos, it->allele, it->seqid);
+            fwrite(&x, sizeof(MarkerT), 1, fp_);
+        }
+        fwrite(&delim_, sizeof(uint64_t), 1, fp_);
+    }
 
-    int pseqid = 0;
     uint64_t delim_ = -1;
-    size_t nwindows_ = 0;
-    bool inc_ = false;
-
-    std::vector<uint64_t> marker_locs;
-    std::vector<MarkerT> marker_vals, pmarker_vals;
+    size_t wsize_ = 1;
+    int seqid_ = -1;
+    size_t tlen_ = 0; // maximum position up to last sequence
+    size_t tpos_ = 0;
+    std::deque<Marker> marker_queue_;
+    FILE* fp_;
+    FILE* log_;
 };
-
 
 template<template<typename> typename ReadConType=VecFileSource>
 using MarkerPositions = rle_window_arr<ReadConType>;
-/*
-template<template<typename> typename ReadConType=VecFileSource>
-class MarkerPositions : public rle_window_arr<ReadConType> {
-
-    public:
-
-    MarkerPositions() {}
-    MarkerPositions(std::string fname) : rle_window_arr<ReadConType>(fname) {}
-
-    bool has_markers(uint64_t i) const {
-        return this->has_entry(i);
-    }
-
-    std::vector<uint64_t> get_markers(uint64_t i) const {
-        return this->at(i);
-    }
-};
-*/
 
 template <typename MPos=MarkerPositions<>>
 void write_marker_array(std::string mai_fname, std::string sa_fname, std::string output = "") {

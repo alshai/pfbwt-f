@@ -145,7 +145,7 @@ void scan_vcf_sample(Args args, std::string sample) {
     } else {
         fa_fp = fopen(fa_fname.data(), "w");
     }
-    // MarkerPositionsWriter mi_writer(args.mai ? MarkerPositionsWriter(args.w, ma_fp, args.verb ? NULL : log) : MarkerPositionsWriter());
+
     MarkerPositionsWriter mi_writer(([&]() {
             if (args.mai) return MarkerPositionsWriter(args.ma_w, ma_fp, args.verb ? NULL : log);
             else return MarkerPositionsWriter();
@@ -154,9 +154,10 @@ void scan_vcf_sample(Args args, std::string sample) {
     int ppos = 0;
     int ppos_after = 0;
     int prid = 0;
+    int32_t pref_len = 0;
     size_t len_bias = 0;
     std::string pseq("");
-    // auto out_fn = [&](bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int ref_len) {
+
     auto out_fn = [&](bcf_hdr_t* hdr, bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int32_t ref_len, int rid) {
         if (prid != rid) {
            ppos = 0;
@@ -177,16 +178,17 @@ void scan_vcf_sample(Args args, std::string sample) {
             if (rec->pos != ppos) {
                 int pos = args.ref_only ? rec->pos : posv[i];
                 int gt =  args.ref_only ? 0        : gtv[i];
-                if (args.mai) mi_writer.update(rec->pos, gt, len_bias+pos, rid);
+                if (args.mai) { mi_writer.update(rec->pos, gt, rid); }
                 update_sequence(ref_seq, ref_len, rec, ppos_after, gt, fa_fp, log);
                 ppos = rec->pos;
                 ppos_after = ppos + strlen(rec->d.allele[0]);
             } else fprintf(stderr, "warning: overlapping variants at %lu. skipping... \n", rec->pos);
         } else {
-            if (args.mai) mi_writer.update(ref_len, -1, ref_len, rid);
+            if (args.mai) { mi_writer.finish_sequence(ref_len + args.w); }
             update_sequence(ref_seq, ref_len, NULL, ppos_after, -1, fa_fp, log);
         }
         prid = rid;
+        pref_len = ref_len;
     };
     VCFScanner v(vargs);
     v.vcf_for_each(out_fn);
