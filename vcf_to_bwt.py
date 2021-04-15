@@ -109,22 +109,27 @@ def vcf_to_parse(args, ref=False):
         cmd_builder.set_m()
     vcf_scan_cmd = cmd_builder.get_cmd()
     log = open(full_prefix + ".log", "w")
-    log.write("{}\n".format(' '.join(vcf_scan_cmd)))
     if args.save_fasta:
         fa_fname = full_prefix + ".fa"
+        log.write("{}\n".format((' '.join(vcf_scan_cmd))))
         with open(fa_fname, "w") as fa_fp:
             vcf_scan_proc = sp.run(vcf_scan_cmd, stdout=fa_fp, stderr=log, check=True)
         pfbwt_cmd = [PFBWTF_EXE, '--non-acgt-to-a', '--parse-only', '--print-docs', '-s', '-o', full_prefix, fa_fname]
         if args.mmap:
             pfbwt_cmd = pfbwt_cmd[:1] + ['-m'] + pfbwt_cmd[1:]
+        log.write("{}\n".format((' '.join(pfbwt_cmd))))
         pfbwt_proc = sp.run(pfbwt_cmd, check=True, stdout=log, stderr=sp.PIPE)
     else:
-        vcf_scan_proc = sp.Popen(vcf_scan_cmd, stdout=sp.PIPE, stderr=log)
         pfbwt_cmd = [PFBWTF_EXE, '--non-acgt-to-a', '--parse-only', '--print-docs', '-s', '-o', full_prefix]
         if args.mmap:
             pfbwt_cmd = pfbwt_cmd[:1] + ['-m'] + pfbwt_cmd[1:]
+        log.write("{}\n".format((' '.join(vcf_scan_cmd) + "|" + ' '.join(pfbwt_cmd))))
+        vcf_scan_proc = sp.Popen(vcf_scan_cmd, stdout=sp.PIPE, stderr=log)
         pfbwt_proc = sp.run(pfbwt_cmd, stdin=vcf_scan_proc.stdout, stdout=log, stderr=sp.PIPE, check=True)
         vcf_scan_proc.wait()
+        if vcf_scan_proc.returncode != 0:
+            sys.stderr.write("vcf scan failed w/ error: {}\n".format(vcf_scan_proc.returncode))
+            raise Exception
     log.close()
 
 

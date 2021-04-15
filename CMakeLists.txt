@@ -27,7 +27,7 @@ include_directories(${PROJECT_SOURCE_DIR}/sdsl-lite/include)
 
 message("Building in ${CMAKE_BUILD_TYPE} mode")
 
-set(CMAKE_CXX_FLAGS "-DM64  -Wall -Wextra")
+set(CMAKE_CXX_FLAGS "-DM64  -Wall -Wextra -std=c++17")
 set(CMAKE_C_FLAGS "-DM64 -Wall -Wextra -std=c99")
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb -g -march=native")
@@ -47,6 +47,8 @@ add_executable(mps_to_ma src/mps_to_ma.cpp src/utils.c)
 # tests
 add_executable(marker_test tests/marker_test.cpp)
 target_link_libraries(marker_test gtest_main)
+add_test(NAME single_chrom_no_markers COMMAND bash ${PROJECT_SOURCE_DIR}/tests/vcf_to_bwt_test_no_markers.sh ${PROJECT_SOURCE_DIR} single_chrom)
+add_test(NAME mult_chroms_no_markers COMMAND bash ${PROJECT_SOURCE_DIR}/tests/vcf_to_bwt_test_no_markers.sh ${PROJECT_SOURCE_DIR} mult_chroms)
 add_test(NAME single_chrom COMMAND bash ${PROJECT_SOURCE_DIR}/tests/vcf_to_bwt_test.sh ${PROJECT_SOURCE_DIR} single_chrom)
 add_test(NAME mult_chroms COMMAND bash ${PROJECT_SOURCE_DIR}/tests/vcf_to_bwt_test.sh ${PROJECT_SOURCE_DIR} mult_chroms)
 include(GoogleTest)
