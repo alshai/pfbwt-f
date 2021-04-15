@@ -2,6 +2,7 @@ import sys
 import argparse
 import pysam
 import subprocess
+import os
 from pysuffixarray.core import SuffixArray
 
 if __name__ == "__main__":
@@ -13,6 +14,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     vcf = pysam.VariantFile(args.vcf, "r")
+    if not os.path.exists(args.fasta + ".fai"):
+        p = subprocess.run(["samtools", "faidx", args.fasta], check=True)
+        p.check_returncode()
     contigs = [f.split()[0].strip() for f in open(args.fasta + ".fai", "r").readlines()]
     out_seq = open(args.o + ".txt", "w")
     out_sa = open(args.o + ".sa", "w")
