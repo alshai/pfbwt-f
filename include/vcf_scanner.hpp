@@ -31,6 +31,9 @@ class BCFGenotype {
 
     size_t operator[](size_t i) {
         if (n_ < 0) return 0;
+        if (n_ == 1 && i > 0) { // for when a haploid is given instead of diploid
+            return bcf_gt_allele(gt_arr_[0]);
+        }
         return bcf_gt_allele(gt_arr_[i]);
     }
 
@@ -178,8 +181,9 @@ class VCFScanner {
             // if all samples droppped, gt_buf has size <= 0
             BCFGenotype gts(hdr, rec, gt_buf); // get genotypes for this line
             for (size_t i = 0; i < posv.size(); ++i ) { // update positions for this line
+                int32_t gt = gts[i];
                 posv[i] = posv[i] + (rec->pos - ppos) + deltav[i];
-                int alt_len = strlen(rec->d.allele[gts[i]]);
+                int alt_len = strlen(rec->d.allele[gt]);
                 deltav[i] = alt_len - ref_len; // negative if deletion
             }
             out_fn(hdr, rec, gts, posv, ref_seq, ref_length, id);

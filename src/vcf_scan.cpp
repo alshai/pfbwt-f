@@ -176,8 +176,8 @@ void scan_vcf_sample(Args args, std::string sample) {
 
         if (rec != NULL) {
             if (rec->pos != ppos) {
-                int pos = args.ref_only ? rec->pos : posv[i];
                 int gt =  args.ref_only ? 0        : gtv[i];
+                gt = (gt == -1) ? 0 : gt; // hack for when gt is malformed. ie: 0 1|1 0|0 etc
                 if (args.mai) { mi_writer.update(rec->pos, gt, rid); }
                 update_sequence(ref_seq, ref_len, rec, ppos_after, gt, fa_fp, log);
                 ppos = rec->pos;
