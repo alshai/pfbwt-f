@@ -94,6 +94,7 @@ def vcf_to_fa(args, ref=False):
     fa_fname = full_prefix + ".fa"
     with open(fa_fname, "w") as fa_fp:
         vcf_scan_proc = sp.run(cmd, stdout=fa_fp, stderr=log, check=True)
+        vcf_scan_proc.check_returncode()
     log.close()
 
 
@@ -130,6 +131,9 @@ def vcf_to_parse(args, ref=False):
         if vcf_scan_proc.returncode != 0:
             sys.stderr.write("vcf scan failed w/ error: {}\n".format(vcf_scan_proc.returncode))
             raise Exception
+        if pfbwt_proc.returncode != 0:
+            sys.stderr.write("pfbwt parsing failed w/ error: {}\n".format(pfbwt_proc.returncode))
+            raise Exception
     log.close()
 
 
@@ -149,8 +153,7 @@ class vcf_to_parse_builder:
 
 def merge_mps(args, thread_args, logger, log_fp):
     logger.info("merging marker positions")
-    length = int(open(args.o + ".ref.n").read().strip())
-    cmd = [MERGE_MPS_EXE, args.fasta+".fai", str(args.wsize), args.o + ".mps"] + [args.o + ".ref.mps"] + [a.full_prefix + ".mps" for a in thread_args]
+    cmd = [MERGE_MPS_EXE, args.o + ".mps", args.o + ".ref"] + [a.full_prefix for a in thread_args]
     logger.info(" ".join(cmd))
     sp.run(cmd, check=True, stdout=log_fp, stderr=sp.PIPE)
     logger.info("merged marker positions")
@@ -217,6 +220,11 @@ def vcf_to_bwt(args):
         logger.info(" ".join(cat_cmd) + " | " + " ".join(parse_cmd))
         parse_proc = sp.run(parse_cmd, check=True, stdin=cat_proc.stdout, stderr=sp.STDOUT, stdout=log_fp)
         cat_proc.wait()
+        if cat_proc.returncode != 0:
+            raise Exception
+        if parse_proc.returncode != 0:
+            sys.stderr.write("parsing failed\n")
+            raise Exception
         logger.info("generated parse")
     else:
         logger.info("generating parses from VCF")
@@ -253,6 +261,7 @@ def vcf_to_bwt(args):
         sa_fp = open(args.o + ".sa", "wb")
         logger.info(" ".join(pfbwt_cmd) + " | cat")
         cat_sa_proc = sp.run(['cat'], stdin=pfbwt_proc.stdout, stdout=sa_fp, stderr=log_fp, check=True)
+        cat_sa_proc.check_returncode()
         pfbwt_proc.wait()
         sa_fp.close()
     elif args.ma and not args.sa:
@@ -262,6 +271,7 @@ def vcf_to_bwt(args):
             marker_array_cmd = marker_array_cmd[:1] + ['-m'] + marker_array_cmd[1:]
         logger.info(" ".join(pfbwt_cmd) + " | " + " ".join(marker_array_cmd))
         marker_array_proc = sp.run(marker_array_cmd, stdin=pfbwt_proc.stdout, stderr=sp.STDOUT, stdout=log_fp, check=True)
+        marker_array_proc.check_returncode()
         pfbwt_proc.wait()
     elif args.sa and args.ma:
         logger.info("constructing marker array along with BWT. SA will also be saved")

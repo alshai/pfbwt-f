@@ -186,6 +186,10 @@ class PrefixFreeBWT {
             }
         }
         fprintf(stderr, "# easy cases: %lu, # hard cases: %lu\n", easy_cases, hard_cases);
+        fprintf(stderr, "allocations: chars: %lu, words: %lu,  suffs: %lu, word_ilist: %lu\n",
+                chars.capacity(), words.capacity(), suffs.capacity(), word_ilist.capacity());
+        fprintf(stderr, "sizes: dict: %lu, bwlast: %lu, ilist: %lu, bwsai: %lu, gsa: %lu, glcp: %lu\n",
+                    dict.size(), bwlast.size(), ilist.size(), bwsai.size(), gsa.size(), glcp.size());
         return;
     }
 

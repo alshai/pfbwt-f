@@ -153,17 +153,12 @@ void scan_vcf_sample(Args args, std::string sample) {
     );
     int ppos = 0;
     int ppos_after = 0;
-    int prid = 0;
-    int32_t pref_len = 0;
-    size_t len_bias = 0;
+    int64_t seq_start = 0;
+    int64_t bias = 0;
     std::string pseq("");
 
     auto out_fn = [&](bcf_hdr_t* hdr, bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int32_t ref_len, int rid) {
-        if (prid != rid) {
-           ppos = 0;
-           ppos_after = 0;
-           len_bias += ref_len + args.w;
-        }
+        (void) posv;
         const char* ref_name = bcf_hdr_id2name(hdr, rid);
         if (strcmp(ref_name, pseq.data())) {
             std::string to_write(ref_name);
@@ -176,19 +171,47 @@ void scan_vcf_sample(Args args, std::string sample) {
 
         if (rec != NULL) {
             if (rec->pos != ppos) {
-                int gt =  args.ref_only ? 0        : gtv[i];
+                int gt =  args.ref_only ? 0 : gtv[i];
                 gt = (gt == -1) ? 0 : gt; // hack for when gt is malformed. ie: 0 1|1 0|0 etc
-                if (args.mai) { mi_writer.update(rec->pos, gt, rid); }
+                if (args.mai) { 
+                    // if indel, [ra]len includes base before indel
+                    size_t rlen = strlen(rec->d.allele[0]);
+                    size_t alen = strlen(rec->d.allele[1]);
+                    if (rlen == 1 && alen == 1) {
+                        mi_writer.update(static_cast<size_t>(seq_start + bias + rec->pos), rec->pos, gt, rid); 
+                    } else if (rlen != alen and gt == 0) {
+                        for (size_t i = 0; i <= rlen; ++i) {
+                            mi_writer.update(static_cast<size_t>(seq_start + bias + rec->pos + i), rec->pos, gt, rid);
+                        }
+                        // shouldn't have to change bias for gt==0
+                    } else if (rlen > alen && gt > 0) { // deletion
+                        mi_writer.update(static_cast<size_t>(seq_start+bias+rec->pos), rec->pos, gt, rid);
+                        mi_writer.update(static_cast<size_t>(seq_start+bias+rec->pos+1), rec->pos, gt, rid);
+                        bias = bias - (rlen - 1);
+                        fprintf(stderr, "bias after del: %ld\n", bias);
+                    } else if (rlen < alen && gt > 0) { // insertion
+                        for (size_t i = 0; i < alen + 1; ++i) {
+                            mi_writer.update(static_cast<size_t>(seq_start+bias+rec->pos+i), rec->pos, gt, rid);
+                        }
+                        bias = bias + alen - 1;
+                        fprintf(stderr, "bias after ins: %ld\n", bias);
+                    }
+                }
                 update_sequence(ref_seq, ref_len, rec, ppos_after, gt, fa_fp, log);
                 ppos = rec->pos;
                 ppos_after = ppos + strlen(rec->d.allele[0]);
             } else fprintf(stderr, "warning: overlapping variants at %lu. skipping... \n", rec->pos);
-        } else {
-            if (args.mai) { mi_writer.finish_sequence(ref_len + args.w); }
+        } else { // end of contig
+            if (args.mai) { 
+                mi_writer.finish_sequence(static_cast<size_t>(static_cast<int64_t>(ref_len) + bias + args.w)); 
+                fprintf(stderr, "bias: %ld\n", bias);
+            }
             update_sequence(ref_seq, ref_len, NULL, ppos_after, -1, fa_fp, log);
+            ppos = 0;
+            ppos_after = 0;
+            seq_start += ref_len + args.w + bias;
+            bias = 0;
         }
-        prid = rid;
-        pref_len = ref_len;
     };
     VCFScanner v(vargs);
     v.vcf_for_each(out_fn);

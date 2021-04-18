@@ -41,7 +41,7 @@ class MarkerPositionsWriter {
 
     ~MarkerPositionsWriter() {}
 
-    void update(size_t rpos, int gt, int seqid) {
+    void update(size_t pos, size_t recpos, int gt, int seqid) {
         if (seqid == -1) {
             fprintf(stderr, "%s ERROR: seqid==-1 not allowed!\n", __FUNCTION__);
         }
@@ -50,12 +50,12 @@ class MarkerPositionsWriter {
             exit(1);
         }
         // check if new marker is outside window
-        while (marker_queue_.size() && marker_queue_.front().refpos + wsize_ <= rpos) {
+        while (marker_queue_.size() && marker_queue_.front().textpos + wsize_ <= pos) {
             process_run();
             marker_queue_.pop_front();
         }
-        marker_queue_.push_back(Marker(tlen_ + rpos, rpos, gt, seqid));
-        assert(marker_queue_.back().refpos < marker_queue_.front().refpos + wsize_);
+        marker_queue_.push_back(Marker(pos, recpos, gt, seqid));
+        assert(marker_queue_.back().textpos < marker_queue_.front().textpos + wsize_);
         seqid_ = seqid;
     }
 
