@@ -32,14 +32,16 @@ class MarkerPositionsWriter {
 
     public:
 
-    MarkerPositionsWriter() {}
+    MarkerPositionsWriter() {
+    }
 
     MarkerPositionsWriter(size_t w, FILE* ofp, FILE* log=NULL) 
     : wsize_(w)
     , fp_(ofp)
     , log_(log) {}
 
-    ~MarkerPositionsWriter() {}
+    ~MarkerPositionsWriter() {
+    }
 
     void update(size_t pos, size_t recpos, int gt, int seqid) {
         if (seqid == -1) {
@@ -62,6 +64,14 @@ class MarkerPositionsWriter {
     void finish_sequence(size_t length) {
         process_run();
         marker_queue_.clear();
+        if (markers_to_write_.size()) {
+            fwrite(&range_[0], sizeof(uint64_t), 1, fp_);
+            fwrite(&range_[1], sizeof(uint64_t), 1, fp_);
+            fwrite(markers_to_write_.data(), sizeof(MarkerT), markers_to_write_.size(), fp_);
+            fwrite(&delim_, sizeof(uint64_t), 1, fp_);
+        }
+        markers_to_write_.clear();
+        range_[0] = 0; range_[1] = 0;
         seqid_ = -1;
         tlen_ += length;
     }
@@ -89,13 +99,26 @@ class MarkerPositionsWriter {
     }
 
     void write_markers(uint64_t start, uint64_t end, std::deque<Marker>::iterator it_end) {
-        fwrite(&start, sizeof(uint64_t), 1, fp_);
-        fwrite(&end, sizeof(uint64_t), 1, fp_);
+        std::vector<MarkerT> markers;
+        MarkerT px = -1;
         for (auto it=marker_queue_.begin(); it != it_end; ++it) {
             MarkerT x = create_marker_t(it->refpos, it->allele, it->seqid);
-            fwrite(&x, sizeof(MarkerT), 1, fp_);
+            if (x != px) markers.push_back(x);
+            px = x;
         }
-        fwrite(&delim_, sizeof(uint64_t), 1, fp_);
+        if (start == range_[1] + 1 && markers == markers_to_write_) { // don't write yet if both the same
+            range_[1] = end;
+        } else {
+            if (markers_to_write_.size()) {
+                fwrite(&range_[0], sizeof(uint64_t), 1, fp_);
+                fwrite(&range_[1], sizeof(uint64_t), 1, fp_);
+                fwrite(markers_to_write_.data(), sizeof(MarkerT), markers_to_write_.size(), fp_);
+                // fwrite(&x, sizeof(MarkerT), 1, fp_);
+                fwrite(&delim_, sizeof(uint64_t), 1, fp_);
+            }
+            range_[0] = start; range_[1] = end;
+            markers_to_write_ = markers;
+        }
     }
 
     uint64_t delim_ = -1;
@@ -104,6 +127,8 @@ class MarkerPositionsWriter {
     size_t tlen_ = 0; // maximum position up to last sequence
     size_t tpos_ = 0;
     std::deque<Marker> marker_queue_;
+    std::vector<MarkerT> markers_to_write_;
+    uint64_t range_[2] = {0,0};
     FILE* fp_;
     FILE* log_;
 };
