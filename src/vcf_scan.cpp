@@ -156,6 +156,8 @@ void scan_vcf_sample(Args args, std::string sample) {
     int64_t seq_start = 0;
     int64_t bias = 0;
     std::string pseq("");
+    int prange[2] = {0,0};
+    int range[2] = {0,0};
 
     auto out_fn = [&](bcf_hdr_t* hdr, bcf1_t* rec, BCFGenotype& gtv, std::vector<size_t>& posv, char* ref_seq, int32_t ref_len, int rid) {
         (void) posv;
@@ -170,7 +172,9 @@ void scan_vcf_sample(Args args, std::string sample) {
         }
 
         if (rec != NULL) {
-            if (rec->pos != ppos) {
+            range[0] = rec->pos;
+            range[1] = rec->pos + strlen(rec->d.allele[0]);
+            if (prange[1] < range[0]) {
                 int gt =  args.ref_only ? 0 : gtv[i];
                 gt = (gt == -1) ? 0 : gt; // hack for when gt is malformed. ie: 0 1|1 0|0 etc
                 if (args.mai) { 
@@ -197,9 +201,12 @@ void scan_vcf_sample(Args args, std::string sample) {
                         fprintf(stderr, "bias after ins: %ld\n", bias);
                     }
                 }
+                if (args.ref_only) assert(gt==0);
                 update_sequence(ref_seq, ref_len, rec, ppos_after, gt, fa_fp, log);
                 ppos = rec->pos;
                 ppos_after = ppos + strlen(rec->d.allele[0]);
+                prange[0] = range[0];
+                prange[1] = range[1];
             } else fprintf(stderr, "warning: overlapping variants at %lu. skipping... \n", rec->pos);
         } else { // end of contig
             if (args.mai) { 
@@ -211,6 +218,10 @@ void scan_vcf_sample(Args args, std::string sample) {
             ppos_after = 0;
             seq_start += ref_len + args.w + bias;
             bias = 0;
+            prange[0] = 0;
+            prange[1] = 0;
+            range[0] = 0;
+            range[1] = 0;
         }
     };
     VCFScanner v(vargs);

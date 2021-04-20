@@ -13,7 +13,7 @@ struct Args {
 
 Args parse_args(int argc, char** argv) {
     Args args;
-    if (argc < 5) {
+    if (argc < 4) {
         fprintf(stderr, "usage: ./merge_marker_indexes <output> <prefix 1> ... <prefix n>");
         exit(1);
     }
