@@ -182,6 +182,10 @@ class VCFScanner {
             BCFGenotype gts(hdr, rec, gt_buf); // get genotypes for this line
             for (size_t i = 0; i < posv.size(); ++i ) { // update positions for this line
                 int32_t gt = gts[i];
+                if (gt >= rec->n_allele) {
+                    fprintf(stderr, "malformed GT in VCF (trying to access GT %d for record with %d alleles)\n", gt, rec->n_allele);
+                    exit(1);
+                }
                 posv[i] = posv[i] + (rec->pos - ppos) + deltav[i];
                 int alt_len = strlen(rec->d.allele[gt]);
                 deltav[i] = alt_len - ref_len; // negative if deletion

@@ -207,7 +207,10 @@ void scan_vcf_sample(Args args, std::string sample) {
                 ppos_after = ppos + strlen(rec->d.allele[0]);
                 prange[0] = range[0];
                 prange[1] = range[1];
-            } else fprintf(stderr, "warning: overlapping variants at %lu. skipping... \n", rec->pos);
+            } else {
+                fprintf(stderr, "Warning: if you want to allow overlapping variants, please make sure they appear in the same VCF record. We suggest using `bcftools norm` to do so, but we only support overlapping alleles at identical start positions\n");
+                fprintf(stderr, "$ bcftools norm -m+any <vcf>\n");
+            }
         } else { // end of contig
             if (args.mai) { 
                 mi_writer.finish_sequence(static_cast<size_t>(static_cast<int64_t>(ref_len) + bias + args.w)); 
