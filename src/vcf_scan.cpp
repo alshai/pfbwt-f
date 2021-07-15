@@ -174,15 +174,15 @@ void scan_vcf_sample(Args args, std::string sample) {
         if (rec != NULL) {
             range[0] = rec->pos;
             range[1] = rec->pos + strlen(rec->d.allele[0]);
-            if (prange[1] < range[0]) {
+            if (prange[1] <= range[0]) {
                 int gt =  args.ref_only ? 0 : gtv[i];
                 gt = (gt == -1) ? 0 : gt; // hack for when gt is malformed. ie: 0 1|1 0|0 etc
-                if (args.mai) { 
+                if (args.mai) {
                     // if indel, [ra]len includes base before indel
                     size_t rlen = strlen(rec->d.allele[0]);
                     size_t alen = strlen(rec->d.allele[1]);
                     if (rlen == 1 && alen == 1) {
-                        mi_writer.update(static_cast<size_t>(seq_start + bias + rec->pos), rec->pos, gt, rid); 
+                        mi_writer.update(static_cast<size_t>(seq_start + bias + rec->pos), rec->pos, gt, rid);
                     } else if (rlen != alen and gt == 0) {
                         for (size_t i = 0; i <= rlen; ++i) {
                             mi_writer.update(static_cast<size_t>(seq_start + bias + rec->pos + i), rec->pos, gt, rid);
@@ -192,13 +192,13 @@ void scan_vcf_sample(Args args, std::string sample) {
                         mi_writer.update(static_cast<size_t>(seq_start+bias+rec->pos), rec->pos, gt, rid);
                         mi_writer.update(static_cast<size_t>(seq_start+bias+rec->pos+1), rec->pos, gt, rid);
                         bias = bias - (rlen - 1);
-                        fprintf(stderr, "bias after del: %ld\n", bias);
+                        // fprintf(stderr, "bias after del: %ld\n", bias);
                     } else if (rlen < alen && gt > 0) { // insertion
                         for (size_t i = 0; i < alen + 1; ++i) {
                             mi_writer.update(static_cast<size_t>(seq_start+bias+rec->pos+i), rec->pos, gt, rid);
                         }
                         bias = bias + alen - 1;
-                        fprintf(stderr, "bias after ins: %ld\n", bias);
+                        // fprintf(stderr, "bias after ins: %ld\n", bias);
                     }
                 }
                 if (args.ref_only) assert(gt==0);
@@ -208,13 +208,13 @@ void scan_vcf_sample(Args args, std::string sample) {
                 prange[0] = range[0];
                 prange[1] = range[1];
             } else {
-                fprintf(stderr, "Warning: if you want to allow overlapping variants, please make sure they appear in the same VCF record. We suggest using `bcftools norm` to do so, but we only support overlapping alleles at identical start positions\n");
-                fprintf(stderr, "$ bcftools norm -m+any <vcf>\n");
+                fprintf(stderr, "Warning: skipping overlapping variant %d:%ld (%s). ", rec->rid, rec->pos, rec->d.id);
+                fprintf(stderr, "To allow overlapping variants, use multiallelic lines: ie. $ bcftools norm -m+any <vcf> (dels after snps not supported)\n");
             }
         } else { // end of contig
-            if (args.mai) { 
-                mi_writer.finish_sequence(static_cast<size_t>(static_cast<int64_t>(ref_len) + bias + args.w)); 
-                fprintf(stderr, "bias: %ld\n", bias);
+            if (args.mai) {
+                mi_writer.finish_sequence(static_cast<size_t>(static_cast<int64_t>(ref_len) + bias + args.w));
+                //fprintf(stderr, "bias: %ld\n", bias);
             }
             update_sequence(ref_seq, ref_len, NULL, ppos_after, -1, fa_fp, log);
             ppos = 0;

@@ -35,7 +35,7 @@ class MarkerPositionsWriter {
     MarkerPositionsWriter() {
     }
 
-    MarkerPositionsWriter(size_t w, FILE* ofp, FILE* log=NULL) 
+    MarkerPositionsWriter(size_t w, FILE* ofp, FILE* log=NULL)
     : wsize_(w)
     , fp_(ofp)
     , log_(log) {}
@@ -81,7 +81,7 @@ class MarkerPositionsWriter {
     void process_run() {
         /* invariant: marker_queue.end() < marker_queue_.begin() + wsize_ */
         uint64_t end;
-        assert(tpos_ <= marker_queue_.front().textpos);  // I don't think this should ever happen
+        // assert(tpos_ <= marker_queue_.front().textpos);  // I don't think this should ever happen
         if (tpos_ + wsize_ <= marker_queue_.front().textpos) { // skip ahead if necessary
             tpos_ = marker_queue_.front().textpos - wsize_ + 1;
         }
