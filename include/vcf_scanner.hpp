@@ -182,6 +182,11 @@ class VCFScanner {
             BCFGenotype gts(hdr, rec, gt_buf); // get genotypes for this line
             for (size_t i = 0; i < posv.size(); ++i ) { // update positions for this line
                 int32_t gt = gts[i];
+                if (gt == -1) {
+                    fprintf(stderr, "no genotype found for %d:%d, defaulting to 0\n", rec->rid, rec->pos);
+                    gt = 0;
+                }
+                // fprintf(stderr, "%d %d\n", gt, rec->n_allele);
                 if (gt >= rec->n_allele) {
                     fprintf(stderr, "malformed GT in VCF (trying to access GT %d for record with %d alleles)\n", gt, rec->n_allele);
                     exit(1);
