@@ -24,6 +24,7 @@ enable_testing()
 include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/sdsl-lite/include)
+include_directories(${PROJECT_SOURCE_DIR}/bcftools)
 
 message("Building in ${CMAKE_BUILD_TYPE} mode")
 
@@ -43,6 +44,8 @@ TARGET_LINK_LIBRARIES(vcf_scan hts)
 add_executable(merge_mps src/merge_mps.cpp)
 add_executable(dump_markers src/dump_markers.cpp)
 add_executable(mps_to_ma src/mps_to_ma.cpp src/utils.c)
+add_executable(consensus src/consensus.cpp bcftools/filter.c )
+TARGET_LINK_LIBRARIES(consensus z m /home/taher/build/htslib/build/lib/libhts.a curl ssl crypto pthread bz2 lzma)
 
 # tests
 add_executable(marker_test tests/marker_test.cpp)

@@ -1,3 +1,6 @@
 [submodule "sdsl-lite"]
 	path = sdsl-lite
 	url = https://github.com/xxsds/sdsl-lite
+[submodule "bcftools"]
+	path = bcftools
+	url = git@github.com:samtools/bcftools.git
