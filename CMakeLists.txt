@@ -9,6 +9,8 @@ endif()
 project (pfbwt-f)
 
 find_library(HTS_LIB hts)
+get_filename_component(HTSLIB_DIR ${HTS_LIB} DIRECTORY)
+message(${HTSLIB_DIR} "/../")
 
 # Google Test support
 set(CMAKE_CXX_STANDARD 17)
@@ -20,6 +22,9 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 include(CTest)
 enable_testing()
+
+# message("LIBS='-L$ENV{CONDA_PREFIX}/lib' CPPFLAGS='-I$ENV{CONDA_PREFIX}/include' ./configure --with-htslib=${HTSLIB_DIR}/.." )
+# execute_process(COMMAND "autoheader" COMMAND "autoconf" COMMAND "LIBS='-L$ENV{CONDA_PREFIX}/lib' CPPFLAGS='-I$ENV{CONDA_PREFIX}/include' ./configure --with-htslib=${HTSLIB_DIR}/.." WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/bcftools COMMAND_ERROR_IS_FATAL ANY OUTPUT_FILE out ERROR_FILE err)
 
 include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -45,7 +50,7 @@ add_executable(merge_mps src/merge_mps.cpp)
 add_executable(dump_markers src/dump_markers.cpp)
 add_executable(mps_to_ma src/mps_to_ma.cpp src/utils.c)
 add_executable(consensus src/consensus.cpp bcftools/filter.c )
-TARGET_LINK_LIBRARIES(consensus z m /home/taher/build/htslib/build/lib/libhts.a curl ssl crypto pthread bz2 lzma)
+TARGET_LINK_LIBRARIES(consensus z m ${HTS_LIB} curl ssl crypto pthread bz2 lzma)
 
 # tests
 add_executable(marker_test tests/marker_test.cpp)
