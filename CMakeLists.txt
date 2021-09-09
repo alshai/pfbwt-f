@@ -44,8 +44,6 @@ add_executable(pfbwt-f64 src/pfbwt-f.cpp gsa/gsacak.c src/utils.c)
 TARGET_LINK_LIBRARIES(pfbwt-f64 z)
 add_executable(merge_pfp src/merge_pfp.cpp gsa/gsacak.c src/utils.c)
 TARGET_LINK_LIBRARIES(merge_pfp z pthread)
-add_executable(vcf_scan src/vcf_scan.cpp)
-TARGET_LINK_LIBRARIES(vcf_scan hts)
 add_executable(merge_mps src/merge_mps.cpp)
 add_executable(dump_markers src/dump_markers.cpp)
 add_executable(mps_to_ma src/mps_to_ma.cpp src/utils.c)
@@ -67,5 +65,5 @@ include(CPack)
 
 # file(COPY ${PROJECT_SOURCE_DIR}/vcf_to_bwt.py DESTINATION bin FILE_PERMISSIONS OWNER_READ OWNER_EXECUTE)
 install(FILES ${PROJECT_SOURCE_DIR}/vcf_to_bwt.py DESTINATION bin PERMISSIONS OWNER_READ OWNER_EXECUTE)
-install(TARGETS pfbwt-f64 merge_pfp vcf_scan merge_mps dump_markers mps_to_ma
+install(TARGETS pfbwt-f64 merge_pfp merge_mps dump_markers mps_to_ma
         DESTINATION bin)

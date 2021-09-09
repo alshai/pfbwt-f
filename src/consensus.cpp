@@ -3,17 +3,17 @@
    Copyright (c) 2014-2021 Genome Research Ltd.
 
    Author: Petr Danecek <pd3@sanger.ac.uk>
-   
+
    Permission is hereby granted, free of charge, to any person obtaining a copy
    of this software and associated documentation files (the "Software"), to deal
    in the Software without restriction, including without limitation the rights
    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
    copies of the Software, and to permit persons to whom the Software is
    furnished to do so, subject to the following conditions:
-   
+
    The above copyright notice and this permission notice shall be included in
    all copies or substantial portions of the Software.
-   
+
    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -60,6 +60,7 @@ extern "C" {
 #define PICK_LONG  4
 #define PICK_SHORT 8
 #define PICK_IUPAC 16
+#define PICK_REF_ALWAYS 32
 
 #define TO_UPPER 0
 #define TO_LOWER 1
@@ -102,6 +103,7 @@ typedef struct
     char prev_base;     // this is only to validate the REF allele in the VCF - the modified fa_buf cannot be used for inserts following deletions, see 600#issuecomment-383186778
     int prev_base_pos;  // the position of prev_base
     int prev_is_insert;
+    uint64_t total_len;
 
     rbuf_t vcf_rbuf;
     bcf1_t **vcf_buf;
@@ -188,7 +190,7 @@ static void print_chain(args_t& args)
         - alt_start (same as ref_start, as no edits are recorded/applied before that position)
         - alt_end (adjusted to match the length of the alt sequence)
         - chain_num (just an auto-increment id)
-        
+
         the other (sorted) lines are:
         - length of the ungapped alignment block
         - gap on the ref sequence between this and the next block (all but the last line)
@@ -250,6 +252,9 @@ static void init_data(args_t& args)
     {
         args.isample = bcf_hdr_id2int(args.hdr,BCF_DT_SAMPLE,args.sample);
         if ( args.isample<0 ) error("No such sample: %s\n", args.sample);
+    }
+    if ( args.allele & PICK_REF_ALWAYS) {
+        args.isample = 0;
     }
     if ( (args.haplotype || args.allele) && args.isample<0 )
     {
@@ -559,7 +564,7 @@ static void apply_variant(args_t& args, bcf1_t *rec)
                     if ( !args.missing_allele ) return;
                     ialt = -1;
                 }
-                else 
+                else
                 {
                     if ( !warned_haplotype )
                     {
@@ -577,11 +582,11 @@ static void apply_variant(args_t& args, bcf1_t *rec)
                     if ( !args.missing_allele ) return;
                     ialt = -1;
                 }
-                else 
+                else
                     ialt = bcf_gt_allele(ialt);
             }
         }
-        else if ( action==use_iupac ) 
+        else if ( action==use_iupac )
         {
             /*
             ialt = -1;
@@ -620,6 +625,10 @@ static void apply_variant(args_t& args, bcf1_t *rec)
             else if ( is_missing && !args.missing_allele ) return;
             */
            error("iupac is currently disabled\n");
+        }
+        else if (args.allele & PICK_REF_ALWAYS)
+        {
+            ialt = 0;
         }
         else
         {
@@ -669,13 +678,13 @@ static void apply_variant(args_t& args, bcf1_t *rec)
             // ref allele
             if ( args.absent_allele ) freeze_ref(args,rec);
             if ( args.ma_fname ) {
-                if (rec->pos <= args.fa_frz_pos) 
+                if (rec->pos <= args.fa_frz_pos)
                 { // variant is within a deletion or starts just before insertion
-                    args.mi_writer.update(static_cast<size_t>(rec->pos + args.fa_pmod_off), rec->pos, 0, rec->rid);
-                } 
-                else 
+                    args.mi_writer.update(static_cast<size_t>(args.total_len + rec->pos + args.fa_pmod_off), rec->pos, 0, rec->rid);
+                }
+                else
                 {
-                    args.mi_writer.update(static_cast<size_t>(rec->pos + args.fa_mod_off), rec->pos, 0, rec->rid);
+                    args.mi_writer.update(static_cast<size_t>(args.total_len + rec->pos + args.fa_mod_off), rec->pos, 0, rec->rid);
                 }
             }
             return;
@@ -738,7 +747,7 @@ static void apply_variant(args_t& args, bcf1_t *rec)
             fprintf(stderr,"The site %s:%" PRId64 " overlaps with another variant, skipping...\n", bcf_seqname(args.hdr,rec),(int64_t) rec->pos+1);
             return;
         }
-        
+
     }
 
     char *alt_allele = rec->d.allele[ialt];
@@ -761,7 +770,7 @@ static void apply_variant(args_t& args, bcf1_t *rec)
             fprintf(stderr,"Warning: trimming variant starting at %s:%" PRId64 "\n", bcf_seqname(args.hdr,rec),(int64_t) rec->pos+1);
         }
     }
-    if ( (size_t) idx>=args.fa_buf.l ) 
+    if ( (size_t) idx>=args.fa_buf.l )
         error("FIXME: %s:%" PRId64 " .. idx=%d, ori_pos=%d, len=%" PRIu64 ", off=%d\n",bcf_seqname(args.hdr,rec),(int64_t) rec->pos+1,idx,args.fa_ori_pos,(uint64_t)args.fa_buf.l,args.fa_mod_off);
 
     // sanity check the reference base
@@ -821,8 +830,8 @@ static void apply_variant(args_t& args, bcf1_t *rec)
         if ( fail )
         {
             char tmp = 0;
-            if ( args.fa_buf.l - idx > (size_t) rec->rlen ) 
-            { 
+            if ( args.fa_buf.l - idx > (size_t) rec->rlen )
+            {
                 tmp = args.fa_buf.s[idx+rec->rlen];
                 args.fa_buf.s[idx+rec->rlen] = 0;
             }
@@ -838,7 +847,7 @@ static void apply_variant(args_t& args, bcf1_t *rec)
         alen = strlen(alt_allele);
         len_diff = alen - rec->rlen;
 
-        if ( args.mark_del && len_diff<0 ) 
+        if ( args.mark_del && len_diff<0 )
         {
             alt_allele = mark_del(rec->d.allele[0], rec->rlen, alt_allele, args.mark_del);
             alen = rec->rlen;
@@ -851,7 +860,7 @@ static void apply_variant(args_t& args, bcf1_t *rec)
         alen = strlen(alt_allele);
         len_diff = alen - rec->rlen;
 
-        if ( args.mark_del && len_diff<0 ) 
+        if ( args.mark_del && len_diff<0 )
         {
             alt_allele = mark_del(rec->d.allele[0], rec->rlen, alt_allele, args.mark_del);
             alen = rec->rlen;
@@ -922,13 +931,13 @@ static void apply_variant(args_t& args, bcf1_t *rec)
         }
     }
     if ( args.ma_fname ) {
-        if (rec->pos <= args.fa_frz_pos) 
+        if (rec->pos <= args.fa_frz_pos)
         { // variant is within a deletion
-            args.mi_writer.update(static_cast<size_t>(rec->pos + args.fa_pmod_off), rec->pos, ialt, rec->rid);
-        } 
-        else 
+            args.mi_writer.update(static_cast<size_t>(args.total_len + rec->pos + args.fa_pmod_off), rec->pos, ialt, rec->rid);
+        }
+        else
         {
-            args.mi_writer.update(static_cast<size_t>(rec->pos + args.fa_mod_off), rec->pos, ialt, rec->rid);
+            args.mi_writer.update(static_cast<size_t>(args.total_len + rec->pos + args.fa_mod_off), rec->pos, ialt, rec->rid);
         }
     }
     args.fa_buf.l += len_diff;
@@ -998,9 +1007,13 @@ static void consensus(args_t& args)
                     pos = args.vcf_buf[args.vcf_rbuf.f]->pos;
                 apply_absent(args, pos);
             }
-            if ( args.ma_fname && nseq > 0 )
+            if ( nseq > 0 )
             {
-                args.mi_writer.finish_sequence(args.fa_src_pos + args.fa_mod_off + args.len_bias);
+                if ( args.ma_fname )
+                {
+                    args.mi_writer.finish_sequence();
+                }
+                args.total_len += args.fa_length + args.fa_mod_off + args.len_bias;
             }
             flush_fa_buffer(args, 0);
             init_region(args, str.s+1);
@@ -1069,7 +1082,7 @@ static void consensus(args_t& args)
     if ( args.absent_allele ) apply_absent(args, HTS_POS_MAX);
     if ( args.ma_fname )
     {
-        args.mi_writer.finish_sequence(args.fa_src_pos + args.fa_mod_off + args.len_bias);
+        args.mi_writer.finish_sequence();
     }
     flush_fa_buffer(args, 0);
     bgzf_close(fasta);
@@ -1130,7 +1143,7 @@ int main(int argc, char *argv[])
     args.ma_w = 19;
     args.len_bias = 10;
 
-    static struct option loptions[] = 
+    static struct option loptions[] =
     {
         {"mark-del",required_argument,NULL,1},
         {"mark-ins",required_argument,NULL,2},
@@ -1156,7 +1169,7 @@ int main(int argc, char *argv[])
     int c;
     while ((c = getopt_long(argc, argv, "h?s:1Ii:e:H:f:o:m:c:M:p:a:x:w:l:",loptions,NULL)) >= 0)
     {
-        switch (c) 
+        switch (c)
         {
             case  1 : args.mark_del = optarg[0]; break;
             case  2 :
@@ -1173,10 +1186,10 @@ int main(int argc, char *argv[])
             case 's': args.sample = optarg; break;
             case 'o': args.output_fname = optarg; break;
             case 'I': error("iupac currently disabled\n"); args.output_iupac = 1; break;
-            case 'e': 
+            case 'e':
                 if ( args.filter_str ) error("Error: only one -i or -e expression can be given, and they cannot be combined\n");
                 args.filter_str = optarg; args.filter_logic |= FLT_EXCLUDE; break;
-            case 'i': 
+            case 'i':
                 if ( args.filter_str ) error("Error: only one -i or -e expression can be given, and they cannot be combined\n");
                 args.filter_str = optarg; args.filter_logic |= FLT_INCLUDE; break;
             case 'f': args.ref_fname = optarg; break;
@@ -1186,12 +1199,12 @@ int main(int argc, char *argv[])
                 args.absent_allele = optarg[0];
                 if ( optarg[1]!=0 ) error("Expected single character with -a, got \"%s\"\n", optarg);
                 break;
-            case 'M': 
-                args.missing_allele = optarg[0]; 
+            case 'M':
+                args.missing_allele = optarg[0];
                 if ( optarg[1]!=0 ) error("Expected single character with -M, got \"%s\"\n", optarg);
                 break;
             case 'c': args.chain_fname = optarg; break;
-            case 'H': 
+            case 'H':
                 if ( !strcasecmp(optarg,"R") ) args.allele |= PICK_REF;
                 else if ( !strcasecmp(optarg,"A") ) args.allele |= PICK_ALT;
                 else if ( !strcasecmp(optarg,"L") ) args.allele |= PICK_LONG|PICK_REF;
@@ -1200,6 +1213,7 @@ int main(int argc, char *argv[])
                 else if ( !strcasecmp(optarg,"LA") ) args.allele |= PICK_LONG|PICK_ALT;
                 else if ( !strcasecmp(optarg,"SR") ) args.allele |= PICK_SHORT|PICK_REF;
                 else if ( !strcasecmp(optarg,"SA") ) args.allele |= PICK_SHORT|PICK_ALT;
+                else if (!strcasecmp(optarg, "RR") ) args.allele |= PICK_REF_ALWAYS;
                 else if ( !strcasecmp(optarg,"I") ) {
                     /*
                     args.allele |= PICK_IUPAC;
@@ -1227,7 +1241,7 @@ int main(int argc, char *argv[])
                 }
                 break;
             case 'x': args.ma_fname = optarg; break;
-            case 'w': 
+            case 'w':
             {
                 char* tmp;
                 args.ma_w = strtol(optarg, &tmp, 10);

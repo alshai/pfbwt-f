@@ -61,7 +61,7 @@ class MarkerPositionsWriter {
         seqid_ = seqid;
     }
 
-    void finish_sequence(size_t length) {
+    void finish_sequence() {
         process_run();
         marker_queue_.clear();
         if (markers_to_write_.size()) {
@@ -73,7 +73,6 @@ class MarkerPositionsWriter {
         markers_to_write_.clear();
         range_[0] = 0; range_[1] = 0;
         seqid_ = -1;
-        tlen_ += length;
     }
 
     private:
@@ -124,7 +123,6 @@ class MarkerPositionsWriter {
     uint64_t delim_ = -1;
     size_t wsize_ = 1;
     int seqid_ = -1;
-    size_t tlen_ = 0; // maximum position up to last sequence
     size_t tpos_ = 0;
     std::deque<Marker> marker_queue_;
     std::vector<MarkerT> markers_to_write_;
