@@ -678,14 +678,15 @@ static void apply_variant(args_t& args, bcf1_t *rec)
             // ref allele
             if ( args.absent_allele ) freeze_ref(args,rec);
             if ( args.ma_fname ) {
-                if (rec->pos <= args.fa_frz_pos)
-                { // variant is within a deletion or starts just before insertion
-                    args.mi_writer.update(static_cast<size_t>(args.total_len + rec->pos + args.fa_pmod_off), rec->pos, 0, rec->rid);
-                }
-                else
-                {
+                if (rec->pos > args.fa_frz_pos)
+                { 
                     args.mi_writer.update(static_cast<size_t>(args.total_len + rec->pos + args.fa_mod_off), rec->pos, 0, rec->rid);
                 }
+                // else
+                // {// variant is within a deletion or starts just before insertion
+                //     // do nothing - because variant is not present at all in this sequence (no REF nor ALT)
+                //     // args.mi_writer.update(static_cast<size_t>(args.total_len + rec->pos + args.fa_pmod_off), rec->pos, 0, rec->rid);
+                // }
             }
             return;
         }
@@ -931,14 +932,14 @@ static void apply_variant(args_t& args, bcf1_t *rec)
         }
     }
     if ( args.ma_fname ) {
-        if (rec->pos <= args.fa_frz_pos)
-        { // variant is within a deletion
-            args.mi_writer.update(static_cast<size_t>(args.total_len + rec->pos + args.fa_pmod_off), rec->pos, ialt, rec->rid);
-        }
-        else
-        {
+        if (rec->pos > args.fa_frz_pos)
+        { 
             args.mi_writer.update(static_cast<size_t>(args.total_len + rec->pos + args.fa_mod_off), rec->pos, ialt, rec->rid);
         }
+        // else 
+        // { variant within deletion - i.e. it's impossible to have a variant here, so do nothing
+        //     // args.mi_writer.update(static_cast<size_t>(args.total_len + rec->pos + args.fa_pmod_off), rec->pos, ialt, rec->rid);
+        // }
     }
     args.fa_buf.l += len_diff;
     args.fa_pmod_off = args.fa_mod_off;
