@@ -3,7 +3,7 @@ CXX_FLAGS=-std=c++11 -Ofast -Wall -Wextra -march=native -g
 CFLAGS=-O3 -Wall -std=c99 -g
 CC=gcc
 CXX=g++
-INC=-I./include
+INC=-I./include -I.
 SDSL_INC=-I./sdsl-lite/include
 
 # main executables

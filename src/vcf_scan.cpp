@@ -213,7 +213,7 @@ void scan_vcf_sample(Args args, std::string sample) {
             }
         } else { // end of contig
             if (args.mai) {
-                mi_writer.finish_sequence(static_cast<size_t>(static_cast<int64_t>(ref_len) + bias + args.w));
+                mi_writer.finish_sequence();
                 //fprintf(stderr, "bias: %ld\n", bias);
             }
             update_sequence(ref_seq, ref_len, NULL, ppos_after, -1, fa_fp, log);
